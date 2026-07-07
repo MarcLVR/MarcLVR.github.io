@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Marc Pérez Bernús · ML Risk Modeling · Agentic AI · Responsible AI</title>
+<meta name="description" content="Marc Pérez Bernús, Data Scientist and PMO lead who builds and governs machine learning and multi-agent AI for regulated industries. ML risk scoring (XGBoost, SHAP, calibration), Agentic AI (LangGraph, RAG, MCP), Responsible AI (EU AI Act, GDPR), and data governance." />
+<meta name="author" content="Marc Pérez Bernús" />
+<meta name="keywords" content="Machine Learning, Data Science, Risk Modeling, Credit Risk, Fraud Detection, XGBoost, LightGBM, Isolation Forest, SHAP, Explainable AI, Responsible AI, EU AI Act, GDPR, Model Risk Management, Agentic AI, LangGraph, Multi-agent, RAG, MCP, Data Governance, DAMA-DMBOK, PMO, Python" />
+
+<!-- Open Graph / social -->
+<meta property="og:type" content="profile" />
+<meta property="og:title" content="Marc Pérez Bernús · ML Risk Modeling · Agentic AI · Responsible AI" />
+<meta property="og:description" content="Data Scientist and PMO lead who builds and governs AI for regulated industries. Selected projects in ML risk scoring, agentic AI, and geospatial analytics." />
+<meta property="og:image" content="https://avatars.githubusercontent.com/u/26000284?v=4" />
+<meta name="twitter:card" content="summary" />
+
+<link rel="icon" href="https://avatars.githubusercontent.com/u/26000284?v=4" />
+
+<!-- Structured data for search engines -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Person",
+  "name": "Marc Pérez Bernús",
+  "alternateName": "MarcLVR",
+  "jobTitle": "Data Scientist · PMO Lead (Data Science, Data Governance, Agentic AI)",
+  "image": "https://avatars.githubusercontent.com/u/26000284?v=4",
+  "email": "mailto:marc.perez@omniaccess.com",
+  "url": "https://marclvr.github.io",
+  "worksFor": { "@type": "Organization", "name": "OmniAccess" },
+  "alumniOf": { "@type": "CollegeOrUniversity", "name": "Universitat Oberta de Catalunya (UOC)" },
+  "address": { "@type": "PostalAddress", "addressCountry": "ES" },
+  "sameAs": [
+    "https://github.com/MarcLVR",
+    "https://www.linkedin.com/in/marcpb"
+  ],
+  "knowsAbout": [
+    "Machine Learning", "Credit and Fraud Risk Scoring", "XGBoost", "LightGBM", "CatBoost",
+    "Anomaly Detection", "Isolation Forest", "Probability Calibration", "PR-AUC", "Cost-sensitive Decisioning",
+    "Model Risk Management", "Explainable AI", "SHAP", "Fairness", "Responsible AI",
+    "EU AI Act", "GDPR Article 22", "NIST AI RMF",
+    "Agentic AI", "LangGraph", "Multi-agent Systems", "ReAct", "Retrieval-Augmented Generation", "Model Context Protocol",
+    "LLM Evaluation", "RAGAS", "Guardrails",
+    "Data Governance", "DAMA-DMBOK", "DCAM", "Data Contracts", "PMO", "Python"
+  ]
+}
+</script>
+
+<style>
+  :root{
+    --bg:#ffffff; --surface:#f8fafc; --card:#ffffff; --ink:#0f172a; --muted:#475569;
+    --line:#e2e8f0; --accent:#4f46e5; --accent-ink:#3730a3; --chip:#eef2ff; --chip-ink:#3730a3;
+    --hero-1:#0f172a; --hero-2:#3730a3; --hero-ink:#e2e8f0; --shadow:0 1px 2px rgba(15,23,42,.06),0 8px 24px rgba(15,23,42,.06);
+    --maxw:1040px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0b1020; --surface:#0f172a; --card:#111a2e; --ink:#e8edf6; --muted:#9fb0c9;
+      --line:#1e293b; --accent:#818cf8; --accent-ink:#c7d2fe; --chip:#1e1b4b; --chip-ink:#c7d2fe;
+      --hero-1:#070b16; --hero-2:#1e1b4b; --hero-ink:#e8edf6; --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  [data-theme="light"]{
+    --bg:#ffffff; --surface:#f8fafc; --card:#ffffff; --ink:#0f172a; --muted:#475569;
+    --line:#e2e8f0; --accent:#4f46e5; --accent-ink:#3730a3; --chip:#eef2ff; --chip-ink:#3730a3;
+    --hero-1:#0f172a; --hero-2:#3730a3; --hero-ink:#e2e8f0;
+  }
+  [data-theme="dark"]{
+    --bg:#0b1020; --surface:#0f172a; --card:#111a2e; --ink:#e8edf6; --muted:#9fb0c9;
+    --line:#1e293b; --accent:#818cf8; --accent-ink:#c7d2fe; --chip:#1e1b4b; --chip-ink:#c7d2fe;
+    --hero-1:#070b16; --hero-2:#1e1b4b; --hero-ink:#e8edf6;
+  }
+
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--accent); text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:var(--maxw); margin:0 auto; padding:0 22px}
+  .skip{position:absolute;left:-9999px} .skip:focus{left:12px;top:12px;background:#fff;color:#000;padding:8px;border-radius:6px;z-index:99}
+
+  /* Header / nav */
+  header.nav{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--bg) 88%,transparent);
+    backdrop-filter:saturate(160%) blur(10px); border-bottom:1px solid var(--line)}
+  .nav-in{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 22px;max-width:var(--maxw);margin:0 auto}
+  .brand{font-weight:700;letter-spacing:.2px;color:var(--ink)}
+  .brand span{color:var(--accent)}
+  .nav-links{display:flex;gap:20px;align-items:center}
+  .nav-links a{color:var(--muted);font-size:14px;font-weight:500}
+  .nav-links a:hover{color:var(--ink);text-decoration:none}
+  .nav-links a.btn-sm,.nav-links a.btn-sm:hover{color:#fff;text-decoration:none}
+  .toggle{cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink);
+    width:38px;height:34px;border-radius:9px;font-size:15px;line-height:1}
+  @media(max-width:720px){.nav-links a:not(.btn-sm){display:none}}
+
+  /* Hero */
+  .hero{background:linear-gradient(135deg,var(--hero-1),var(--hero-2));color:var(--hero-ink);
+    padding:64px 0 56px;border-bottom:1px solid var(--line)}
+  .hero h1{margin:0 0 6px;font-size:clamp(30px,5vw,46px);line-height:1.08;letter-spacing:-.5px;color:#fff}
+  .hero .role{font-size:clamp(15px,2.4vw,19px);font-weight:600;color:#c7d2fe;margin:0 0 18px}
+  .hero p.lede{max-width:660px;color:#dbe3f4;font-size:17px;margin:0 0 24px}
+  .chips{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 26px}
+  .chip{background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);color:#eef2ff;
+    padding:6px 12px;border-radius:999px;font-size:13px;font-weight:500}
+  .cta{display:flex;flex-wrap:wrap;gap:12px}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:11px;font-weight:600;font-size:15px;border:1px solid transparent}
+  .btn-primary{background:#fff;color:#1e1b4b}
+  .btn-primary:hover{text-decoration:none;transform:translateY(-1px)}
+  .btn-ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.35)}
+  .btn-ghost:hover{text-decoration:none;background:rgba(255,255,255,.08)}
+  .btn-sm{padding:8px 14px;border-radius:9px;font-size:14px;background:var(--accent);color:#fff;font-weight:600}
+  .btn-sm:hover{text-decoration:none;filter:brightness(1.06)}
+  .hero .wrap{display:flex;gap:40px;align-items:center}
+  .hero-text{flex:1 1 auto;min-width:0}
+  .hero-portrait{flex:0 0 auto}
+  .hero-portrait .ph{position:relative;width:188px;height:188px;border-radius:22px;overflow:hidden;border:3px solid rgba(255,255,255,.28);box-shadow:0 12px 34px rgba(0,0,0,.32);background:linear-gradient(135deg,#4338ca,#7c3aed);display:flex;align-items:center;justify-content:center}
+  .hero-portrait .ph span{color:#fff;font-size:56px;font-weight:700;letter-spacing:1px}
+  .hero-portrait .ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  @media(max-width:760px){
+    .hero .wrap{flex-direction:column;align-items:flex-start;gap:24px}
+    .hero-portrait .ph{width:118px;height:118px;border-radius:16px}
+    .hero-portrait .ph span{font-size:40px}
+  }
+
+  /* Sections */
+  section{padding:56px 0;border-bottom:1px solid var(--line)}
+  .eyebrow{text-transform:uppercase;letter-spacing:.14em;font-size:12px;font-weight:700;color:var(--accent);margin:0 0 8px}
+  h2{font-size:clamp(22px,3.5vw,30px);margin:0 0 18px;letter-spacing:-.3px}
+  h3{font-size:18px;margin:0 0 6px}
+  .lead{color:var(--muted);max-width:720px;font-size:17px}
+
+  /* Competency band */
+  .comp-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:8px}
+  @media(max-width:880px){.comp-grid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:520px){.comp-grid{grid-template-columns:1fr}}
+  .comp{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .comp h4{margin:0 0 10px;font-size:14px;letter-spacing:.02em}
+  .comp h4 b{color:var(--accent)}
+  .tags{display:flex;flex-wrap:wrap;gap:7px}
+  .tag{background:var(--chip);color:var(--chip-ink);font-size:12px;font-weight:600;padding:4px 9px;border-radius:7px;border:1px solid color-mix(in srgb,var(--chip-ink) 18%,transparent)}
+
+  /* Projects */
+  .proj{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px;margin-bottom:22px;box-shadow:var(--shadow)}
+  .proj-head{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:flex-start}
+  .proj-head .meta{font-size:12.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.08em}
+  .proj h3{font-size:21px;margin:4px 0 2px}
+  .proj .sub{color:var(--accent-ink);font-weight:600;font-size:15px;margin:0 0 12px}
+  [data-theme="dark"] .proj .sub,@media(prefers-color-scheme:dark){.proj .sub{color:var(--accent)}}
+  .proj p{margin:0 0 12px;color:var(--ink)}
+  .proj .muted{color:var(--muted);font-size:14.5px}
+  .viz-wrap{height:150px;border-radius:12px;overflow:hidden;margin:2px 0 18px;border:1px solid var(--line);background:radial-gradient(120% 140% at 0% 0%,color-mix(in srgb,var(--accent) 10%,var(--card)),var(--card) 70%)}
+  .viz{display:block;width:100%;height:100%}
+  .viz .node{fill:var(--card);stroke:var(--accent);stroke-width:1.5}
+  .viz .node-soft{fill:color-mix(in srgb,var(--accent) 12%,var(--card));stroke:var(--accent);stroke-width:1.5}
+  .viz .node-accent{fill:var(--accent)}
+  .viz .edge{stroke:var(--accent);stroke-width:1.6;fill:none;opacity:.5}
+  .viz .axis{stroke:var(--muted);stroke-width:1;opacity:.6}
+  .viz .bar{fill:var(--accent)}
+  .viz .bar-neg{fill:color-mix(in srgb,var(--accent) 45%,var(--muted))}
+  .viz .band{stroke:var(--card);stroke-width:1}
+  .viz .b1{fill:color-mix(in srgb,var(--accent) 18%,var(--card))}
+  .viz .b2{fill:color-mix(in srgb,var(--accent) 40%,var(--card))}
+  .viz .b3{fill:color-mix(in srgb,var(--accent) 66%,var(--card))}
+  .viz .b4{fill:var(--accent)}
+  .viz .river{stroke:var(--accent);stroke-width:2.5;fill:none;opacity:.65}
+  .viz .cov{fill:color-mix(in srgb,var(--accent) 16%,transparent);stroke:var(--accent);stroke-opacity:.4;stroke-width:1}
+  .viz .tower{fill:var(--accent)}
+  .viz .lg{stroke:var(--line);stroke-width:.5}
+  .viz .lg1{fill:color-mix(in srgb,var(--accent) 28%,var(--card))}
+  .viz .lg2{fill:color-mix(in srgb,var(--accent) 52%,var(--card))}
+  .viz .lg3{fill:color-mix(in srgb,var(--accent) 76%,var(--card))}
+  .viz .lg4{fill:var(--accent)}
+  .viz .lbl{fill:var(--ink);font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .viz .lbl-sm{fill:var(--muted);font:500 11px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .viz .lbl-on{fill:#fff;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  @media print{.viz-wrap{display:none}}
+  .kpis{display:flex;flex-wrap:wrap;gap:22px;margin:14px 0 4px;padding:14px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .kpi b{display:block;font-size:22px;color:var(--accent);line-height:1.1}
+  .kpi span{font-size:12.5px;color:var(--muted)}
+  .proj-links{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px}
+  .proj-links a{font-weight:600;font-size:14.5px;display:inline-flex;align-items:center;gap:6px;text-decoration:underline;text-underline-offset:3px}
+  .arrow{font-size:12px}
+
+  /* Skills matrix */
+  .matrix{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
+  @media(max-width:760px){.matrix{grid-template-columns:1fr}}
+  .col{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px}
+  .col h3{font-size:15px;color:var(--accent);margin-bottom:10px}
+  .col ul{margin:0;padding-left:18px;color:var(--ink)}
+  .col li{margin:4px 0;font-size:14.5px}
+
+  /* Experience */
+  .xp{display:grid;grid-template-columns:1fr;gap:16px}
+  .xp-item{display:flex;gap:16px;flex-wrap:wrap}
+  .xp-item .when{min-width:120px;color:var(--muted);font-size:14px;font-weight:600}
+  .xp-item .what h3{margin:0 0 2px}
+  .xp-item .what .org{color:var(--accent);font-weight:600;font-size:14.5px}
+  .xp-item .what p{margin:6px 0 0;color:var(--muted);font-size:14.5px}
+
+  /* Contact */
+  .contact{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px}
+  footer{padding:30px 0;color:var(--muted);font-size:13.5px;text-align:center}
+  footer a{text-decoration:underline;text-underline-offset:2px}
+
+  @media print{
+    header.nav,.toggle,.cta,.btn{display:none!important}
+    .hero{background:#fff;color:#000;padding:24px 0}
+    .hero h1,.hero .role,.hero p.lede,.chip{color:#000!important}
+    .chip{border-color:#999;background:#fff}
+    section{padding:18px 0;break-inside:avoid}
+    a{color:#000}
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="nav">
+  <div class="nav-in">
+    <a class="brand" href="#top">Marc Pérez Bernús<span>.</span></a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="#about">About</a>
+      <a href="#skills">Skills</a>
+      <a href="#projects">Projects</a>
+      <a href="#experience">Experience</a>
+      <button class="toggle" id="themeToggle" title="Toggle light / dark" aria-label="Toggle colour theme">◐</button>
+      <a class="btn-sm" href="#contact">Contact</a>
+    </nav>
+  </div>
+</header>
+
+<a id="top"></a>
+<section class="hero" style="border-bottom:none">
+  <div class="wrap">
+    <div class="hero-text">
+    <h1>Marc Pérez Bernús</h1>
+    <p class="role">ML&nbsp;Risk&nbsp;Modeling&nbsp;·&nbsp;Agentic&nbsp;AI&nbsp;·&nbsp;Explainable&nbsp;&amp;&nbsp;Responsible&nbsp;AI&nbsp;·&nbsp;Data&nbsp;Governance</p>
+    <p class="lede">I build machine learning and multi-agent AI systems for finance and other regulated industries, and I lead the program and governance work that gets them into production. What I care about is models that are accurate, explainable, and ready for review.</p>
+    <div class="chips">
+      <span class="chip">📍 Spain · EU</span>
+      <span class="chip">🎓 MSc Data Science, UOC (2026)</span>
+      <span class="chip">🧭 PMO Lead · DS · Governance · Agentic AI</span>
+      <span class="chip">🛡️ EU AI Act · GDPR · Model Risk</span>
+    </div>
+    <div class="cta">
+      <a class="btn btn-primary" href="#projects">View projects ↓</a>
+      <a class="btn btn-ghost" href="https://github.com/MarcLVR" rel="noopener">GitHub</a>
+      <a class="btn btn-ghost" href="https://www.linkedin.com/in/marcpb" rel="noopener">LinkedIn</a>
+      <a class="btn btn-ghost" href="mailto:marc.perez@omniaccess.com">Email</a>
+    </div>
+    </div>
+    <div class="hero-portrait">
+      <div class="ph"><span>MP</span><img src="https://avatars.githubusercontent.com/u/26000284?v=4" alt="Marc Pérez Bernús" loading="lazy" onerror="this.style.display='none'" /></div>
+    </div>
+  </div>
+</section>
+
+<main id="main">
+
+<section id="about">
+  <div class="wrap">
+    <p class="eyebrow">About</p>
+    <h2>What I do</h2>
+    <p class="lead">I work across two things that usually sit in different teams: building ML and AI systems, and running the governance and delivery that put them into production. My technical work centres on risk scoring in finance and on agentic AI with evaluation and guardrails included from the start. Alongside that, I lead the PMO for data science, data governance, and Agentic AI projects, and I'm finishing an MSc in Data Science. I work day to day in the EU regulatory context: EU AI Act, GDPR, and model risk.</p>
+  </div>
+</section>
+
+<section id="skills">
+  <div class="wrap">
+    <p class="eyebrow">Core competencies</p>
+    <h2>What I work with</h2>
+    <div class="comp-grid">
+      <div class="comp">
+        <h4><b>ML for Risk</b></h4>
+        <div class="tags">
+          <span class="tag">XGBoost</span><span class="tag">LightGBM</span><span class="tag">CatBoost</span>
+          <span class="tag">Isolation Forest</span><span class="tag">Anomaly Detection</span>
+          <span class="tag">Calibration</span><span class="tag">PR-AUC · KS · Gini · PSI</span>
+          <span class="tag">Cost-sensitive thresholds</span><span class="tag">Monotonic constraints</span>
+          <span class="tag">Model Risk (SR 11-7)</span>
+        </div>
+      </div>
+      <div class="comp">
+        <h4><b>Explainable &amp; Responsible AI</b></h4>
+        <div class="tags">
+          <span class="tag">SHAP</span><span class="tag">LIME</span><span class="tag">ICE / PDP</span>
+          <span class="tag">Counterfactuals</span><span class="tag">Fairness</span>
+          <span class="tag">EU AI Act</span><span class="tag">GDPR Art. 22</span><span class="tag">NIST AI RMF</span>
+        </div>
+      </div>
+      <div class="comp">
+        <h4><b>Agentic AI / GenAI</b></h4>
+        <div class="tags">
+          <span class="tag">LangGraph</span><span class="tag">Multi-agent</span><span class="tag">ReAct</span>
+          <span class="tag">RAG / CRAG</span><span class="tag">MCP</span><span class="tag">Reflexion</span>
+          <span class="tag">HITL</span><span class="tag">Evals: RAGAS · agentevals</span><span class="tag">Guardrails</span>
+        </div>
+      </div>
+      <div class="comp">
+        <h4><b>Data Governance &amp; PMO</b></h4>
+        <div class="tags">
+          <span class="tag">DAMA-DMBOK</span><span class="tag">DCAM</span><span class="tag">Data Contracts</span>
+          <span class="tag">RAID / RACI</span><span class="tag">OKRs</span><span class="tag">Stage-gates</span>
+          <span class="tag">MoSCoW · RICE</span>
+        </div>
+      </div>
+    </div>
+    <p class="lead" style="margin-top:16px">Languages &amp; tooling: <strong>Python</strong> (scikit-learn, PyTorch, pandas), <strong>R</strong> (tidyverse, sf, Leaflet, Quarto), SQL/PostgreSQL, FastAPI, Docker, Git.</p>
+  </div>
+</section>
+
+<section id="projects">
+  <div class="wrap">
+    <p class="eyebrow">Selected work</p>
+    <h2>Projects</h2>
+    <p class="lead" style="margin-bottom:26px">Three projects covering agentic AI, risk modeling, and geospatial analytics. All the code is public on GitHub.</p>
+
+    <!-- Project 1 -->
+    <article class="proj">
+      <div class="viz-wrap">
+        <svg class="viz" viewBox="0 0 880 150" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Multi-agent architecture: documents pass a trust-score gate, a supervisor routes specialist agents, then human approval before action">
+          <rect class="node" x="20" y="53" width="118" height="44" rx="10"/>
+          <text class="lbl" x="79" y="71" text-anchor="middle">Documents</text>
+          <text class="lbl-sm" x="79" y="87" text-anchor="middle">repository</text>
+          <path class="edge" d="M138 75 H188"/>
+          <rect class="node-soft" x="188" y="47" width="128" height="56" rx="10"/>
+          <text class="lbl" x="252" y="71" text-anchor="middle">Trust gate</text>
+          <text class="lbl-sm" x="252" y="89" text-anchor="middle">score ≥ 0.70</text>
+          <path class="edge" d="M316 75 H384"/>
+          <circle class="node-accent" cx="420" cy="75" r="36"/>
+          <text class="lbl-on" x="420" y="79" text-anchor="middle">Supervisor</text>
+          <path class="edge" d="M456 75 C520 75,506 22,566 22"/>
+          <path class="edge" d="M456 75 C520 75,506 60,566 60"/>
+          <path class="edge" d="M456 75 C520 75,506 98,566 98"/>
+          <path class="edge" d="M456 75 C520 75,506 136,566 136"/>
+          <rect class="node" x="566" y="8" width="140" height="28" rx="14"/><text class="lbl" x="636" y="26" text-anchor="middle">Researcher</text>
+          <rect class="node" x="566" y="46" width="140" height="28" rx="14"/><text class="lbl" x="636" y="64" text-anchor="middle">Coder</text>
+          <rect class="node" x="566" y="84" width="140" height="28" rx="14"/><text class="lbl" x="636" y="102" text-anchor="middle">Auditor</text>
+          <rect class="node" x="566" y="122" width="140" height="28" rx="14"/><text class="lbl" x="636" y="140" text-anchor="middle">General</text>
+          <path class="edge" d="M706 22 C734 22,720 75,748 75"/>
+          <path class="edge" d="M706 60 C730 60,726 75,748 75"/>
+          <path class="edge" d="M706 98 C730 98,726 75,748 75"/>
+          <path class="edge" d="M706 136 C734 136,720 75,748 75"/>
+          <rect class="node-soft" x="748" y="53" width="120" height="44" rx="10"/>
+          <text class="lbl" x="808" y="71" text-anchor="middle">Human ✓</text>
+          <text class="lbl-sm" x="808" y="87" text-anchor="middle">approval</text>
+        </svg>
+      </div>
+      <div class="proj-head">
+        <div>
+          <div class="meta">Agentic AI · Governance · Responsible AI</div>
+          <h3>AI Auditor: Document Compliance for AI-Readiness</h3>
+        </div>
+        <div class="meta">Python · LangGraph</div>
+      </div>
+      <p class="sub">A multi-agent system that audits document repositories <em>before</em> they reach a RAG pipeline.</p>
+      <p>If you feed a RAG system stale or non-compliant documents, it repeats their problems with full confidence. AI Auditor checks every file first, scoring it on staleness, standards compliance, and governance metadata to produce a trust score from 0 to 1, and flags anything below 0.70. A LangGraph supervisor then routes specialist agents (researcher, coder, auditor, general) to help fix what the audit finds. The LLM layer is provider-agnostic: it runs fully local on Ollama, or connects to Anthropic, Groq, or OpenAI by changing one line of config.</p>
+      <p class="muted">Under the hood: a deterministic audit engine (zero LLM calls), ReAct specialists, an optional Reflexion self-critique step, a plan-and-execute planner with parallel fan-out (LangGraph <code>Send</code> API), human-in-the-loop approval through <code>interrupt()</code>, agentic RAG (CRAG relevance grading, query rewrite, cross-encoder reranking, structured citations), pluggable episodic memory (Mem0 or LangMem), guardrails (encoding-aware prompt-injection detection, PII redaction, RBAC, rate limiting), MCP tools over stdio and HTTP/SSE, and a full eval suite (routing, trajectory and tool-call checks via agentevals, RAGAS). It runs with a single Docker Compose command and an optional Postgres checkpointer, with Langfuse for tracing.</p>
+      <div class="kpis">
+        <div class="kpi"><b>~42</b><span>docs/sec audit engine</span></div>
+        <div class="kpi"><b>0</b><span>LLM calls in scoring (deterministic)</span></div>
+        <div class="kpi"><b>5+</b><span>LLM providers, swap via .env</span></div>
+        <div class="kpi"><b>5</b><span>eval methodologies</span></div>
+      </div>
+      <div class="tags" style="margin-top:14px">
+        <span class="tag">LangGraph</span><span class="tag">Multi-agent</span><span class="tag">ReAct</span><span class="tag">Reflexion</span>
+        <span class="tag">Agentic RAG / CRAG</span><span class="tag">MCP</span><span class="tag">Mem0 / LangMem</span>
+        <span class="tag">RAGAS · agentevals</span><span class="tag">Guardrails (PII · injection)</span><span class="tag">RBAC</span>
+        <span class="tag">Docker · Postgres</span><span class="tag">Langfuse</span><span class="tag">Python</span>
+      </div>
+      <div class="proj-links">
+        <a href="https://github.com/MarcLVR/SOTA_AAI" rel="noopener">View code on GitHub <span class="arrow">↗</span></a>
+        <a href="https://github.com/MarcLVR/SOTA_AAI#installation" rel="noopener">Run locally / Docker <span class="arrow">↗</span></a>
+      </div>
+    </article>
+
+    <!-- Project 2 -->
+    <article class="proj">
+      <div class="viz-wrap">
+        <svg class="viz" viewBox="0 0 880 150" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Explainable risk scoring: SHAP-style feature contributions on the left and four risk bands mapped to actions on the right">
+          <text class="lbl-sm" x="20" y="20">SHAP contributions</text>
+          <line class="axis" x1="190" y1="30" x2="190" y2="142"/>
+          <rect class="bar" x="190" y="36" width="150" height="18" rx="3"/>
+          <text class="lbl-sm" x="184" y="49" text-anchor="end">amount</text>
+          <rect class="bar" x="190" y="62" width="104" height="18" rx="3"/>
+          <text class="lbl-sm" x="184" y="75" text-anchor="end">balance Δ</text>
+          <rect class="bar-neg" x="120" y="88" width="70" height="18" rx="3"/>
+          <text class="lbl-sm" x="184" y="101" text-anchor="end">type</text>
+          <rect class="bar" x="190" y="114" width="58" height="18" rx="3"/>
+          <text class="lbl-sm" x="184" y="127" text-anchor="end">step</text>
+          <text class="lbl-sm" x="470" y="20">Risk bands to action</text>
+          <rect class="band b1" x="470" y="30" width="390" height="25" rx="5"/><text class="lbl" x="486" y="47">Low · allow</text>
+          <rect class="band b2" x="470" y="59" width="390" height="25" rx="5"/><text class="lbl" x="486" y="76">Medium · monitor</text>
+          <rect class="band b3" x="470" y="88" width="390" height="25" rx="5"/><text class="lbl-on" x="486" y="105">High · review</text>
+          <rect class="band b4" x="470" y="117" width="390" height="25" rx="5"/><text class="lbl-on" x="486" y="134">Critical · block</text>
+        </svg>
+      </div>
+      <div class="proj-head">
+        <div>
+          <div class="meta">ML / Risk Modeling · Explainable AI · MSc Thesis</div>
+          <h3>Behavioural Risk Scoring for Financial Transactions</h3>
+        </div>
+        <div class="meta">Python · XGBoost · SHAP</div>
+      </div>
+      <p class="sub">A hybrid fraud risk-scoring framework (UEBA-inspired), built to pass a model-validation review.</p>
+      <p>Fraud is a rare-event problem. On PaySim, only about 0.13% of transactions are fraudulent, so overall accuracy means little, and the cost of a false alarm is very different from the cost of a missed fraud. The framework has three layers. <strong>Detection</strong> combines a supervised XGBoost model with an unsupervised Isolation Forest into one risk score. <strong>Decision</strong> maps that score to four bands (allow, monitor, review, block), with the cutoff set to minimise expected cost rather than left at the usual 0.5. <strong>Explanation</strong> adds calibrated probabilities and per-transaction SHAP reasons that an investigator, or a customer under GDPR Article 22, can actually be shown.</p>
+      <p class="muted">On method: the train/test split happens <em>before</em> any preprocessing, so there is no leakage, and leakage-prone features are removed. PR-AUC is the main metric, since accuracy is misleading at this level of imbalance. I compared 12 models, from logistic regression to Random Forest, XGBoost, LightGBM, and CatBoost, plus anomaly detectors (Isolation Forest, OCSVM, LOF, ECOD, COPOD, and an autoencoder). The figure I report is the ablated PR-AUC of <strong>0.97</strong>, not the 0.998 the simulator inflates through its fixed accounting pattern. The design follows FINMA validation expectations, Swiss FADP and GDPR Article 22, and the EU AI Act's high-risk obligations, and it ships with a FastAPI scoring prototype.</p>
+      <div class="kpis">
+        <div class="kpi"><b>6.36M</b><span>transactions (PaySim)</span></div>
+        <div class="kpi"><b>0.97</b><span>PR-AUC (ablated)</span></div>
+        <div class="kpi"><b>12</b><span>models benchmarked</span></div>
+        <div class="kpi"><b>4</b><span>cost-based risk bands</span></div>
+      </div>
+      <div class="tags" style="margin-top:14px">
+        <span class="tag">XGBoost</span><span class="tag">LightGBM</span><span class="tag">CatBoost</span><span class="tag">Isolation Forest</span>
+        <span class="tag">Anomaly Detection</span><span class="tag">SHAP</span><span class="tag">Calibration</span>
+        <span class="tag">PR-AUC</span><span class="tag">Cost-sensitive</span><span class="tag">GDPR Art. 22</span>
+        <span class="tag">EU AI Act</span><span class="tag">FastAPI</span><span class="tag">Python</span>
+      </div>
+      <div class="proj-links">
+        <a href="https://github.com/MarcLVR/financial-fraud-anomaly-detection" rel="noopener">View code on GitHub <span class="arrow">↗</span></a>
+        <a href="https://github.com/MarcLVR/financial-fraud-anomaly-detection#methodology-highlights" rel="noopener">Methodology &amp; results <span class="arrow">↗</span></a>
+      </div>
+    </article>
+
+    <!-- Project 3 -->
+    <article class="proj">
+      <div class="viz-wrap">
+        <svg class="viz" viewBox="0 0 880 150" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Stylized coverage map along the Nile from Cairo to Aswan, showing four operators and cell tower locations with coverage radius">
+          <text class="lbl-sm" x="20" y="20">Egypt · OpenCellID · 4 operators</text>
+          <rect class="lg lg1" x="24" y="40" width="13" height="13" rx="3"/><text class="lbl-sm" x="44" y="51">Etisalat</text>
+          <rect class="lg lg2" x="24" y="62" width="13" height="13" rx="3"/><text class="lbl-sm" x="44" y="73">Orange</text>
+          <rect class="lg lg3" x="24" y="84" width="13" height="13" rx="3"/><text class="lbl-sm" x="44" y="95">Vodafone</text>
+          <rect class="lg lg4" x="24" y="106" width="13" height="13" rx="3"/><text class="lbl-sm" x="44" y="117">WE</text>
+          <path class="river" d="M470 8 C436 40,500 60,466 88 C440 110,486 124,466 144"/>
+          <text class="lbl-sm" x="508" y="24">Cairo</text>
+          <text class="lbl-sm" x="488" y="140">Aswan</text>
+          <circle class="cov" cx="458" cy="30" r="26"/>
+          <circle class="cov" cx="500" cy="44" r="18"/>
+          <circle class="cov" cx="450" cy="64" r="16"/>
+          <circle class="cov" cx="482" cy="90" r="13"/>
+          <circle class="cov" cx="462" cy="116" r="11"/>
+          <circle class="cov" cx="470" cy="138" r="9"/>
+          <g class="tower">
+            <circle cx="458" cy="30" r="3"/><circle cx="500" cy="44" r="3"/><circle cx="450" cy="64" r="3"/>
+            <circle cx="482" cy="90" r="3"/><circle cx="462" cy="116" r="3"/><circle cx="470" cy="138" r="3"/>
+            <circle cx="430" cy="36" r="3"/><circle cx="492" cy="70" r="3"/><circle cx="512" cy="34" r="3"/>
+          </g>
+        </svg>
+      </div>
+      <div class="proj-head">
+        <div>
+          <div class="meta">Geospatial Analytics · Data Visualisation</div>
+          <h3>Cell Tower Coverage in Egypt: Operators &amp; Radio Technology</h3>
+        </div>
+        <div class="meta">R · Quarto · Leaflet</div>
+      </div>
+      <p class="sub">Egypt's mobile network mapped at tower level, across four operators and four radio generations.</p>
+      <p>A geospatial analysis of mobile infrastructure in Egypt, with a closer look at coverage gaps along the Nile corridor from Cairo to Aswan. It uses OpenCellID data (MCC 602), broken down by operator (Etisalat, Orange, Vodafone, WE) and radio family (GSM, UMTS, LTE, NR). Interactive Leaflet maps show where each operator is concentrated, how the radio generations roll out, the coverage radius of each tower, and the areas near the river with no coverage at all. It started as a side project linking my day job in telecom (at a maritime-connectivity provider) with geospatial data, and it is upfront about the limits of crowdsourced data: counts are a lower bound, with a bias toward urban areas.</p>
+      <div class="tags" style="margin-top:6px">
+        <span class="tag">R</span><span class="tag">Quarto</span><span class="tag">Leaflet</span><span class="tag">sf</span>
+        <span class="tag">tidyverse</span><span class="tag">Geospatial</span><span class="tag">Data Viz</span><span class="tag">Telecom</span>
+      </div>
+      <div class="proj-links">
+        <a href="https://marclvr.github.io/CellTowers/" rel="noopener">View live maps <span class="arrow">↗</span></a>
+        <a href="https://github.com/MarcLVR/CellTowers" rel="noopener">View code on GitHub <span class="arrow">↗</span></a>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<section id="skills-detail">
+  <div class="wrap">
+    <p class="eyebrow">Capabilities in depth</p>
+    <h2>Skills matrix</h2>
+    <div class="matrix">
+      <div class="col">
+        <h3>Machine Learning for Risk</h3>
+        <ul>
+          <li>Gradient boosting (XGBoost, LightGBM, CatBoost) &amp; ensembles</li>
+          <li>Anomaly detection (Isolation Forest, OCSVM, LOF, ECOD/COPOD, autoencoders)</li>
+          <li>Imbalanced learning; PR-AUC, KS, Gini, PSI; probability calibration</li>
+          <li>Cost-sensitive decisioning &amp; threshold optimisation</li>
+          <li>Model risk management (SR 11-7 spirit), validation artefacts, monitoring</li>
+        </ul>
+      </div>
+      <div class="col">
+        <h3>Explainable &amp; Responsible AI</h3>
+        <ul>
+          <li>Global &amp; local explanations: SHAP, LIME, ICE/PDP, counterfactuals</li>
+          <li>Fairness: demographic parity, equalized odds</li>
+          <li>EU AI Act high-risk obligations; GDPR Art. 22; NIST AI RMF</li>
+          <li>Human oversight design &amp; automated-decision documentation</li>
+        </ul>
+      </div>
+      <div class="col">
+        <h3>Agentic AI &amp; GenAI Engineering</h3>
+        <ul>
+          <li>LangGraph multi-agent systems; supervisor &amp; plan-and-execute topologies</li>
+          <li>ReAct tool-use; Reflexion self-critique; human-in-the-loop gates</li>
+          <li>Agentic RAG (CRAG grading, query rewrite, reranking, citations)</li>
+          <li>Model Context Protocol (MCP); guardrails (prompt-injection, PII, RBAC)</li>
+          <li>LLM evaluation: routing, trajectory/tool-call, RAGAS</li>
+        </ul>
+      </div>
+      <div class="col">
+        <h3>Data Governance &amp; Delivery (PMO)</h3>
+        <ul>
+          <li>DAMA-DMBOK, DCAM; data contracts; data-quality &amp; lineage</li>
+          <li>Program leadership: RAID, RACI/RAPID, OKRs, stage-gates</li>
+          <li>Prioritisation: MoSCoW, RICE; roadmap &amp; stakeholder management</li>
+          <li>Bridging technical delivery with regulatory &amp; risk functions</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="experience">
+  <div class="wrap">
+    <p class="eyebrow">Background</p>
+    <h2>Experience &amp; education</h2>
+    <div class="xp">
+      <div class="xp-item">
+        <div class="when">Current</div>
+        <div class="what">
+          <h3>Project Manager · PMO Lead</h3>
+          <div class="org">OmniAccess (maritime connectivity)</div>
+          <p>Lead the PMO across data science, data governance, and Agentic AI projects, connecting technical delivery with governance, risk, and stakeholder expectations.</p>
+        </div>
+      </div>
+      <div class="xp-item">
+        <div class="when">2026</div>
+        <div class="what">
+          <h3>MSc, Data Science</h3>
+          <div class="org">Universitat Oberta de Catalunya (UOC)</div>
+          <p>Thesis: <em>Design and Evaluation of a Behavioural Risk Scoring Framework for Financial Transactions using Anomaly Detection.</em></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="contact" style="border-bottom:none">
+  <div class="wrap">
+    <p class="eyebrow">Get in touch</p>
+    <h2>Let's talk</h2>
+    <p class="lead">Open to roles and collaborations in ML and risk modeling, Agentic AI, Responsible AI, and data and AI governance, in the EU or remote.</p>
+    <div class="contact">
+      <a class="btn btn-primary" style="background:var(--accent);color:#fff" href="mailto:marc.perez@omniaccess.com">✉ marc.perez@omniaccess.com</a>
+      <a class="btn btn-ghost" style="border-color:var(--line);color:var(--ink)" href="https://www.linkedin.com/in/marcpb" rel="noopener">in/marcpb</a>
+      <a class="btn btn-ghost" style="border-color:var(--line);color:var(--ink)" href="https://github.com/MarcLVR" rel="noopener">github.com/MarcLVR</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">© <span id="yr"></span> Marc Pérez Bernús · Built as a single static page · <a href="https://github.com/MarcLVR" rel="noopener">github.com/MarcLVR</a></div>
+</footer>
+
+<script>
+  // Year
+  document.getElementById('yr').textContent = new Date().getFullYear();
+  // Theme toggle (respects system default; remembers choice)
+  (function(){
+    var btn = document.getElementById('themeToggle');
+    var root = document.documentElement;
+    try{ var saved = localStorage.getItem('theme'); if(saved){ root.setAttribute('data-theme', saved);} }catch(e){}
+    btn.addEventListener('click', function(){
+      var cur = root.getAttribute('data-theme');
+      var sysDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if(!cur){ cur = sysDark ? 'dark' : 'light'; }
+      var next = cur === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try{ localStorage.setItem('theme', next); }catch(e){}
+    });
+  })();
+</script>
+</body>
+</html>
