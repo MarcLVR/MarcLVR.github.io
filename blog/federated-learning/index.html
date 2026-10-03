@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="en" data-level="general">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Federated learning: training a model without collecting the data</title>
+<meta name="description" content="How federated learning works, where it breaks, and when it's worth it. Read it as a visual overview or as a technical deep dive.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&family=Public+Sans:ital,wght@0,400..700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+:root{
+  --ground:#F3F5F8; --surface:#FFFFFF; --ink:#111C2E; --muted:#56637A; --rule:#D9DFE8; --rule-soft:#E7EBF1;
+  --model:#2F4FD6; --model-tint:#E3E8FB; --data:#C98410; --data-tint:#FAEFD8; --risk:#C23B3B; --risk-tint:#F8E3E3;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --body:"Public Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --code:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --col:700px; --wide:1000px; --gutter:clamp(18px,5vw,40px);
+}
+:root[data-theme="dark"]{
+  --ground:#0F1522; --surface:#161E2E; --ink:#E6EBF3; --muted:#97A3B8; --rule:#263146; --rule-soft:#1D2638;
+  --model:#8198FF; --model-tint:#1C2648; --data:#F0B240; --data-tint:#33280F; --risk:#F07A7A; --risk-tint:#3A1C1F;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0F1522; --surface:#161E2E; --ink:#E6EBF3; --muted:#97A3B8; --rule:#263146; --rule-soft:#1D2638;
+    --model:#8198FF; --model-tint:#1C2648; --data:#F0B240; --data-tint:#33280F; --risk:#F07A7A; --risk-tint:#3A1C1F;
+  }
+}
+*,*::before,*::after{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:calc(72px + env(safe-area-inset-top,0px));-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--ground);color:var(--ink);font:400 17px/1.65 var(--body);-webkit-font-smoothing:antialiased}
+a{color:var(--model);text-underline-offset:3px}
+:focus-visible{outline:2px solid var(--model);outline-offset:3px;border-radius:4px}
+img,svg{max-width:100%}
+.col{max-width:var(--col);margin:0 auto;padding-inline:var(--gutter)}
+.wide{max-width:var(--wide);margin:0 auto;padding-inline:var(--gutter)}
+
+/* reading mode switch */
+[data-level="general"] .tech{display:none !important}
+[data-level="technical"] .gen{display:none !important}
+
+/* top bar */
+.bar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--ground) 88%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--rule)}
+.bar-in{max-width:var(--wide);margin:0 auto;padding:10px var(--gutter);display:flex;align-items:center;justify-content:space-between;gap:16px}
+.bar-title{color:var(--ink);text-decoration:none;font:600 15px/1.2 var(--display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.controls{display:flex;align-items:center;gap:10px;flex:none}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:999px;padding:3px;background:var(--surface)}
+.seg button{font:600 13.5px/1 var(--body);border:0;background:none;color:var(--muted);padding:8px 14px;border-radius:999px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--ground)}
+.seg button:hover:not([aria-pressed="true"]){color:var(--ink)}
+.icon-btn{width:36px;height:36px;border-radius:50%;border:1px solid var(--rule);background:var(--surface);color:var(--ink);cursor:pointer;font-size:15px;display:grid;place-items:center}
+
+
+/* hero */
+.hero{padding:clamp(40px,7vw,80px) 0 12px}
+.kicker{font:600 14px/1.4 var(--body);color:var(--model);margin:0 0 14px}
+h1{font:700 clamp(36px,5.6vw,60px)/1.04 var(--display);letter-spacing:-.025em;margin:0 0 20px;max-width:17ch}
+.lede{font-size:clamp(18px,2vw,21px);line-height:1.5;color:var(--muted);max-width:44ch;margin:0 0 20px}
+.mode-note{display:block;font-size:14px;color:var(--muted);border-left:3px solid var(--model);padding:2px 0 2px 12px;margin:0}
+.hero-fig{margin:32px auto 0}
+.legend{display:flex;flex-wrap:wrap;gap:8px 22px;font-size:14px;color:var(--muted);margin-top:10px}
+.legend span{display:inline-flex;align-items:center;gap:8px}
+.sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+.sw.data{background:var(--data);border-radius:50%}
+.sw.model{background:var(--model)}
+
+/* sections */
+section{padding:clamp(48px,7vw,84px) 0 0}
+h2{font:700 clamp(28px,3.6vw,40px)/1.1 var(--display);letter-spacing:-.018em;margin:0 0 16px;max-width:22ch}
+h3{font:650 21px/1.25 var(--display);margin:30px 0 8px}
+p{margin:0 0 16px}
+.big{font-size:clamp(19px,2.1vw,22px);line-height:1.5}
+strong{font-weight:650}
+.data-t{color:var(--data);font-weight:650}
+.model-t{color:var(--model);font-weight:650}
+.risk-t{color:var(--risk);font-weight:650}
+code{font:400 .86em var(--code);background:var(--model-tint);padding:2px 5px;border-radius:4px}
+
+figure{margin:26px 0 8px}
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:clamp(16px,3vw,28px)}
+figcaption{font-size:14px;color:var(--muted);margin-top:10px}
+
+/* comparison */
+.versus{display:grid;grid-template-columns:1fr;gap:18px}
+@media (min-width:760px){.versus{grid-template-columns:1fr 1fr}}
+.versus h4{font:650 17px/1.3 var(--display);margin:0 0 4px}
+.versus p{font-size:15px;color:var(--muted);margin:0 0 10px}
+.tagline{font-size:13.5px;font-weight:600;display:inline-block;padding:3px 9px;border-radius:999px;margin-bottom:10px}
+.tagline.bad{background:var(--risk-tint);color:var(--risk)}
+.tagline.good{background:var(--model-tint);color:var(--model)}
+
+/* stepper */
+.stepper{display:grid;grid-template-columns:1fr;gap:20px;align-items:center}
+@media (min-width:820px){.stepper{grid-template-columns:1.1fr 1fr}}
+.steps{list-style:none;margin:0;padding:0;counter-reset:s}
+.steps li{counter-increment:s;padding:12px 14px 12px 50px;border-radius:10px;position:relative;cursor:pointer;color:var(--muted);transition:background .2s,color .2s}
+.steps li::before{content:counter(s);position:absolute;left:12px;top:12px;width:26px;height:26px;border-radius:50%;border:1.5px solid var(--rule);display:grid;place-items:center;font:600 13px/1 var(--body)}
+.steps li.on{background:var(--model-tint);color:var(--ink)}
+.steps li.on::before{background:var(--model);border-color:var(--model);color:#fff}
+.steps b{display:block;color:var(--ink);font-weight:650}
+.step-nav{display:flex;gap:8px;margin-top:12px}
+.btn{font:600 14px/1 var(--body);padding:10px 16px;border-radius:999px;border:1px solid var(--rule);background:var(--surface);color:var(--ink);cursor:pointer}
+.btn:hover{border-color:var(--ink)}
+.btn.primary{background:var(--model);border-color:var(--model);color:#fff}
+
+/* svg diagram vocabulary */
+.dg{display:block;width:100%;height:auto;font-family:var(--body)}
+.dg .node{fill:var(--surface);stroke:var(--rule);stroke-width:1.5}
+.dg .srv{fill:var(--model-tint);stroke:var(--model);stroke-width:1.5}
+.dg .lbl{fill:var(--ink);font-size:13px;font-weight:600}
+.dg .sub{fill:var(--muted);font-size:11.5px}
+.dg .link{stroke:var(--rule);stroke-width:1.5;fill:none}
+.dg .dot{fill:var(--data)}
+.dg .pk{fill:var(--model)}
+.dg .arrow-m{stroke:var(--model);stroke-width:2;fill:none}
+.dg .arrow-d{stroke:var(--data);stroke-width:2;fill:none}
+.dg .arrow-r{stroke:var(--risk);stroke-width:2;fill:none;stroke-dasharray:5 4}
+.dg .ring{fill:none;stroke:var(--model);stroke-width:2;stroke-dasharray:6 5;opacity:0}
+#round .grp{opacity:.12;transition:opacity .35s}
+#round[data-s="1"] .g-out,#round[data-s="2"] .g-train,#round[data-s="3"] .g-in,#round[data-s="4"] .g-agg{opacity:1}
+#round[data-s="2"] .ring{opacity:1;animation:spin 3s linear infinite;transform-box:fill-box;transform-origin:center}
+#round[data-s="4"] .srv{animation:pulse 1.2s ease-in-out 2}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{50%{stroke-width:5}}
+
+/* two-by-two settings */
+.pair{display:grid;grid-template-columns:1fr;gap:0;border-top:1px solid var(--rule)}
+@media (min-width:760px){.pair{grid-template-columns:1fr 1fr}}
+.pair > div{padding:22px 0;border-bottom:1px solid var(--rule)}
+@media (min-width:760px){.pair > div:first-child{padding-right:28px;border-right:1px solid var(--rule)}.pair > div:last-child{padding-left:28px}}
+.pair h4{font:650 19px/1.25 var(--display);margin:0 0 6px}
+.pair p{font-size:15.5px;margin:0 0 8px}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:14px;margin:12px 0 0}
+.facts dt{color:var(--muted)}
+.facts dd{margin:0;font-weight:600}
+
+/* challenges */
+.chal{display:grid;grid-template-columns:1fr;gap:26px}
+@media (min-width:760px){.chal{grid-template-columns:1fr 1fr}}
+.chal h4{font:650 18px/1.3 var(--display);margin:8px 0 4px}
+.chal p{font-size:15.5px;color:var(--muted);margin:0}
+.chal svg.dg{height:96px;width:auto;max-width:100%}
+
+/* privacy */
+.callout{border-radius:14px;padding:20px 22px;background:var(--risk-tint);border:1px solid color-mix(in srgb,var(--risk) 30%,transparent)}
+.callout p{margin:0}
+.callout .big{font-weight:650;color:var(--ink)}
+.demo{display:grid;grid-template-columns:1fr;gap:22px;align-items:center}
+@media (min-width:760px){.demo{grid-template-columns:auto auto 1fr}}
+.grid-lbl{font-size:13px;color:var(--muted);margin-bottom:6px;font-weight:600}
+.pix{display:grid;grid-template-columns:repeat(10,16px);gap:2px}
+.pix i{width:16px;height:16px;border-radius:2px;display:block}
+.meters{display:grid;gap:14px}
+.meter-row{display:grid;gap:5px}
+.meter-row .top{display:flex;justify-content:space-between;font-size:14px}
+.meter{height:10px;border-radius:5px;background:var(--rule-soft);overflow:hidden}
+.meter span{display:block;height:100%;border-radius:5px;transition:width .15s}
+input[type=range]{width:100%;accent-color:var(--model)}
+.slider-lbl{display:flex;justify-content:space-between;font-size:14px;font-weight:600;margin-bottom:4px}
+
+.defs{display:grid;grid-template-columns:1fr;gap:0;border-top:1px solid var(--rule);margin-top:18px}
+.defs > div{display:grid;grid-template-columns:1fr;gap:4px 24px;padding:18px 0;border-bottom:1px solid var(--rule)}
+@media (min-width:760px){.defs > div{grid-template-columns:210px 1fr}}
+.defs h4{font:650 17px/1.3 var(--display);margin:0}
+.defs p{margin:0;font-size:15.5px}
+.defs .cost{font-size:14px;color:var(--muted);margin-top:4px}
+
+.mask{width:100%;border-collapse:collapse;font-size:15px}
+.mask th,.mask td{padding:9px 10px;border-bottom:1px solid var(--rule);text-align:right;font-variant-numeric:tabular-nums}
+.mask th:first-child,.mask td:first-child{text-align:left}
+.mask th{font-size:13px;color:var(--muted);font-weight:600}
+.mask tr.sum td{font-weight:700;border-bottom:0}
+.mask .hl{color:var(--model);font-weight:700}
+.tbl-wrap{overflow-x:auto}
+
+/* decision helper */
+.qs{display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.qs li{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid var(--rule-soft)}
+.qs .seg button{padding:7px 14px}
+.verdict{margin-top:18px;padding:16px 18px;border-radius:12px;background:var(--model-tint);font-weight:600}
+.verdict.no{background:var(--data-tint)}
+
+/* frameworks */
+.fw{width:100%;border-collapse:collapse;font-size:15px}
+.fw th,.fw td{text-align:left;padding:11px 12px 11px 0;border-bottom:1px solid var(--rule);vertical-align:top}
+.fw th{font-size:13px;color:var(--muted);font-weight:600}
+.fw td:first-child{font-weight:650;white-space:nowrap}
+
+/* technical blocks */
+.tech-block{border-left:3px solid var(--model);padding:4px 0 4px 18px;margin:22px 0}
+.katex-display{overflow-x:auto;overflow-y:hidden;padding:4px 0}
+.algo{background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:16px 18px;font:400 14px/1.7 var(--code);overflow-x:auto;white-space:pre}
+.refs{font-size:14.5px;color:var(--muted);padding-left:20px}
+.refs li{margin-bottom:6px}
+
+footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font-size:14px;color:var(--muted)}
+
+@media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="bar-in">
+    <a class="bar-title" href="../index.html">← Blog</a>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Reading level">
+        <button type="button" data-set-level="general" aria-pressed="true">General</button>
+        <button type="button" data-set-level="technical" aria-pressed="false">Technical</button>
+      </div>
+      <button type="button" class="icon-btn" id="theme" aria-label="Switch light or dark theme" title="Light / dark">◐</button>
+    </div>
+  </div>
+</header>
+
+<main>
+<!-- ───────── HERO ───────── -->
+<div class="hero">
+  <div class="col">
+    <p class="kicker">Machine learning · Privacy</p>
+    <h1>Federated learning: training a model without collecting the data</h1>
+    <p class="lede gen">The data stays where it lives. The model travels to it. Here's how that works, where it breaks, and when it's worth the effort.</p>
+    <p class="lede tech">Objectives and algorithms, convergence under heterogeneity, secure aggregation, differential privacy, and the attacks that make both necessary.</p>
+    <p class="mode-note gen">You're reading the general version. Switch to <b>Technical</b> at the top for the maths.</p>
+    <p class="mode-note tech">You're reading the technical version. Switch to <b>General</b> at the top for the visual overview.</p>
+  </div>
+  <div class="wide hero-fig">
+    <div class="panel">
+      <svg id="hero" class="dg" viewBox="0 0 900 380" role="img" aria-label="A server in the middle sends the model to six clients and receives updates back. The data dots never leave the clients."></svg>
+      <div class="legend">
+        <span><i class="sw data"></i>Data. It never leaves the client.</span>
+        <span><i class="sw model"></i>Model and updates. They travel.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────── WHY ───────── -->
+<section id="why">
+  <div class="col">
+    <h2>Why not just collect the data?</h2>
+    <p class="big gen">Most machine learning starts by copying all the data into one place. Often that's not allowed, not practical or simply not a good idea.</p>
+    <p class="gen">Medical records, financial transactions and personal messages often can't legally leave the organisation or device that holds them. Billions of devices produce data all the time, and uploading all of it would be slow and expensive. And every central copy of sensitive data is one more thing that can be breached.</p>
+    <p class="tech">Centralised empirical risk minimisation assumes a single dataset \(D=\bigcup_k D_k\) that can be accessed by the optimiser. Federated learning (FL) keeps each \(D_k\) resident on client \(k\) and restricts the protocol to exchanging functions of the data, typically model parameters or their differences. The motivation is threefold: legal or contractual constraints on data movement (data minimisation, purpose limitation, data residency), the bandwidth and energy cost of moving raw data at edge scale, and the reduction of the attack surface that a single central store creates. FL is a system-level design choice, not a privacy guarantee in itself; formal guarantees require the mechanisms discussed later.</p>
+  </div>
+  <div class="wide">
+    <figure class="versus">
+      <div class="panel">
+        <span class="tagline bad">Centralised</span>
+        <h4>Move the data to the model</h4>
+        <p>Every client uploads its raw data to one server.</p>
+        <svg id="vs-central" class="dg" viewBox="0 0 420 220" aria-hidden="true"></svg>
+      </div>
+      <div class="panel">
+        <span class="tagline good">Federated</span>
+        <h4>Move the model to the data</h4>
+        <p>The data stays put. Only the model and its updates travel.</p>
+        <svg id="vs-fed" class="dg" viewBox="0 0 420 220" aria-hidden="true"></svg>
+      </div>
+    </figure>
+  </div>
+</section>
+
+<!-- ───────── HOW ───────── -->
+<section id="how">
+  <div class="col">
+    <h2>How one round works</h2>
+    <p class="gen">The best-known method is called Federated Averaging, or FedAvg, introduced by Google researchers in 2016. Training happens in rounds. Click through the steps to see one.</p>
+    <p class="tech">The canonical algorithm is Federated Averaging (FedAvg) [1]. Step through one round on the diagram; the formal description follows.</p>
+  </div>
+  <div class="wide">
+    <figure class="panel stepper">
+      <svg id="round" class="dg" viewBox="0 0 460 340" data-s="1" aria-label="One round of federated averaging"></svg>
+      <div>
+        <ol class="steps" id="steps">
+          <li class="on" data-s="1"><b>Send the model</b><span class="gen">The server sends the current model to a group of clients.</span><span class="tech">Server samples \(S_t\subseteq[K]\), \(|S_t|=\max(\lfloor CK\rfloor,1)\), and broadcasts \(w^t\).</span></li>
+          <li data-s="2"><b>Train locally</b><span class="gen">Each client trains its copy on its own data for a short while.</span><span class="tech">Each \(k\in S_t\) runs \(\tau=E\,n_k/B\) steps of SGD on \(F_k\) from \(w^t\).</span></li>
+          <li data-s="3"><b>Send back the update</b><span class="gen">Clients send back only how the model changed, never the data.</span><span class="tech">Client returns \(\Delta_k^t=w_k^{t,\tau}-w^t\).</span></li>
+          <li data-s="4"><b>Combine</b><span class="gen">The server averages the updates into a better model, then starts the next round.</span><span class="tech">\(w^{t+1}=w^t+\sum_{k\in S_t}\frac{n_k}{\sum_{j\in S_t}n_j}\Delta_k^t\).</span></li>
+        </ol>
+        <div class="step-nav">
+          <button type="button" class="btn" id="prev">Back</button>
+          <button type="button" class="btn primary" id="next">Next step</button>
+        </div>
+      </div>
+    </figure>
+  </div>
+  <div class="col">
+    <p class="gen">After many rounds, the shared model has learned from everyone's data, even though the server never saw any of it. The first large-scale use was next-word prediction on phone keyboards: the model learned from what people typed without their messages leaving the phone.</p>
+
+    <div class="tech">
+      <h3>Objective</h3>
+      <p>With \(K\) clients holding \(n_k\) samples each and \(n=\sum_k n_k\), FL solves</p>
+      \[\min_{w\in\mathbb{R}^d} F(w)=\sum_{k=1}^{K}p_k F_k(w),\qquad p_k=\frac{n_k}{n},\]
+      \[F_k(w)=\frac{1}{n_k}\sum_{i\in D_k}\ell(w;x_i,y_i).\]
+      <p>FedAvg generalises FedSGD (\(\tau=1\), full local batch), trading communication for local computation: with \(\tau\gg1\) the number of rounds to a target accuracy drops by one to two orders of magnitude in the original experiments [1]. The server step can itself be an optimiser: treating \(-\bar\Delta^t\) as a pseudo-gradient gives FedAdam, FedYogi and related methods [8].</p>
+      <div class="algo">FedAvg(K, C, E, B, η, T)
+  initialise w⁰
+  for t = 0 … T−1:
+      S_t ← random subset of ⌈C·K⌉ clients
+      for k ∈ S_t in parallel:
+          w ← wᵗ
+          for each of E epochs, for each batch b ⊂ D_k of size B:
+              w ← w − η ∇ℓ(w; b)
+          Δ_k ← w − wᵗ
+      wᵗ⁺¹ ← wᵗ + Σ_{k∈S_t} (n_k / Σ_{j∈S_t} n_j) · Δ_k</div>
+      <p>For convex, smooth \(F_k\), FedAvg with partial participation and decaying step size converges at \(\mathcal{O}(1/T)\) on non-IID data, but the constant grows with \(\tau\) and with client heterogeneity, and a fixed step size leaves a non-vanishing bias [7].</p>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── SETTINGS ───────── -->
+<section id="settings">
+  <div class="col">
+    <h2>Two very different settings</h2>
+    <p class="gen">"Federated learning" covers two situations that behave very differently in practice.</p>
+    <p class="tech">The regime determines the threat model, the failure modes and which algorithms are viable [2].</p>
+  </div>
+  <div class="wide">
+    <div class="pair">
+      <div>
+        <svg id="crossdevice" class="dg" viewBox="0 0 420 120" aria-hidden="true" style="margin-bottom:10px"></svg>
+        <h4>Cross-device</h4>
+        <p class="gen">Millions of phones, watches or cars. Each holds a little data, is often offline, and joins only a few rounds.</p>
+        <p class="tech">\(K\sim10^6\)–\(10^{10}\), each client stateless and available with low probability per round; participation is sampled, dropouts are the norm, and per-client state (as in SCAFFOLD) is impractical. Secure aggregation and user-level DP are standard.</p>
+        <dl class="facts"><dt>Clients</dt><dd>Millions</dd><dt>Hard part</dt><dd>Unreliable devices, bandwidth</dd><dt>Example</dt><dd>Keyboard prediction</dd></dl>
+      </div>
+      <div>
+        <svg id="crosssilo" class="dg" viewBox="0 0 420 120" aria-hidden="true" style="margin-bottom:10px"></svg>
+        <h4>Cross-silo</h4>
+        <p class="gen">A handful of organisations such as hospitals or banks. Each has lots of data and good infrastructure. The hard part is agreeing on the rules.</p>
+        <p class="tech">\(K\sim2\)–\(100\), almost always available, stateful and addressable; full participation per round is feasible. Aggregates over few clients reveal more, participants may be competitors, and the adversary is often an honest-but-curious peer.</p>
+        <dl class="facts"><dt>Clients</dt><dd>2 to 100</dd><dt>Hard part</dt><dd>Governance, trust between parties</dd><dt>Example</dt><dd>Hospitals training a diagnostic model</dd></dl>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <h3>How the data is split</h3>
+    <p class="gen">There's a second distinction. In <strong>horizontal</strong> federated learning, participants have the same kind of information about different people. In <strong>vertical</strong> federated learning, they have different information about the same people.</p>
+    <p class="tech">Horizontal FL partitions the sample space: \(\mathcal{X}_A=\mathcal{X}_B\), \(I_A\neq I_B\). Vertical FL partitions the feature space: \(I_A\cap I_B\neq\emptyset\), \(\mathcal{X}_A\neq\mathcal{X}_B\), so each sample's feature vector is \(x=[x^A;x^B]\) and labels usually sit with one party.</p>
+  </div>
+  <div class="wide">
+    <figure class="versus">
+      <div class="panel">
+        <h4>Horizontal</h4>
+        <p>Two hospitals: same columns, different patients.</p>
+        <svg id="horiz" class="dg" viewBox="0 0 320 190" aria-hidden="true"></svg>
+      </div>
+      <div class="panel">
+        <h4>Vertical</h4>
+        <p>A bank and a retailer: same customers, different columns.</p>
+        <svg id="vert" class="dg" viewBox="0 0 320 190" aria-hidden="true"></svg>
+      </div>
+    </figure>
+  </div>
+  <div class="col tech">
+    <div class="tech-block">
+      <p><strong>Vertical FL mechanics.</strong> Parties first align entities with private set intersection (PSI), so neither learns the other's non-overlapping IDs. For a generalised linear model the logit decomposes as \(z_i=w_A^\top x_i^A+w_B^\top x_i^B\); parties exchange partial logits and residuals under additively homomorphic encryption (e.g. Paillier) so the label holder can compute \(\partial\ell/\partial z_i\) without seeing \(x^A\). For deep models the common pattern is split learning: per-party bottom networks produce embeddings \(h^A,h^B\), and a top network owned by the label holder is trained on \([h^A;h^B]\). Intermediate activations and their gradients leak both features and labels, so vertical FL needs its own leakage analysis.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── CHALLENGES ───────── -->
+<section id="hard">
+  <div class="col">
+    <h2>What makes it hard</h2>
+    <p class="gen">Federated learning isn't just normal training spread over several machines. Four problems are specific to it.</p>
+    <p class="tech">Four properties separate FL from datacenter distributed training [2, 11]: statistical heterogeneity, communication cost, systems heterogeneity and the loss of data observability.</p>
+  </div>
+  <div class="wide">
+    <div class="panel chal">
+      <div>
+        <svg id="ch-noniid" class="dg" viewBox="0 0 260 96" aria-hidden="true"></svg>
+        <h4>Every client's data is different</h4>
+        <p class="gen">Each client reflects its own users and habits, so they pull the model in different directions. The result can be slower training, or a model that works for big clients and poorly for small ones.</p>
+        <p class="tech">Non-IID data: \(P_k(x,y)\neq P_j(x,y)\) through label skew, feature skew or concept shift. With \(\tau>1\) local steps, client optima \(w_k^\star\neq w^\star\) cause client drift (see below).</p>
+      </div>
+      <div>
+        <svg id="ch-comm" class="dg" viewBox="0 0 260 96" aria-hidden="true"></svg>
+        <h4>Communication is the bottleneck</h4>
+        <p class="gen">Sending the model back and forth often costs more than the training itself, especially for big models on mobile networks.</p>
+        <p class="tech">Per-round uplink is \(\mathcal{O}(|S_t|\,d)\) and uplink bandwidth is asymmetric. Mitigations: more local work, quantisation, top-\(k\) sparsification with error feedback, low-rank or sketched updates, and parameter-efficient fine-tuning for large models.</p>
+      </div>
+      <div>
+        <svg id="ch-drop" class="dg" viewBox="0 0 260 96" aria-hidden="true"></svg>
+        <h4>Clients come and go</h4>
+        <p class="gen">Devices disconnect, run slowly or have different hardware. The system has to make progress with whoever shows up.</p>
+        <p class="tech">Stragglers and dropouts bias the aggregate toward fast, well-connected clients. Variable \(\tau_k\) causes objective inconsistency, which FedNova corrects by normalising updates by local step count [10].</p>
+      </div>
+      <div>
+        <svg id="ch-blind" class="dg" viewBox="0 0 260 96" aria-hidden="true"></svg>
+        <h4>Nobody can look at the data</h4>
+        <p class="gen">Cleaning data, checking labels, spotting bias and debugging all get harder when no one can inspect the training set.</p>
+        <p class="tech">Data validation, label-noise estimation, fairness auditing and error analysis must run as federated computations (federated analytics), themselves subject to the same privacy constraints.</p>
+      </div>
+    </div>
+  </div>
+  <div class="col tech">
+    <h3>Client drift and its corrections</h3>
+    <figure class="panel" style="margin-top:14px">
+      <svg class="dg" viewBox="0 0 560 250" aria-label="Two client objectives with different optima. Local steps drift toward each client's optimum instead of the global one.">
+        <defs><marker id="ah-m" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--model)"/></marker>
+        <marker id="ah-d" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="var(--data)"/></marker></defs>
+        <g fill="none" stroke="var(--rule)" stroke-width="1.3">
+          <ellipse cx="170" cy="120" rx="140" ry="70"/><ellipse cx="170" cy="120" rx="90" ry="44"/><ellipse cx="170" cy="120" rx="40" ry="20"/>
+          <ellipse cx="400" cy="130" rx="140" ry="75"/><ellipse cx="400" cy="130" rx="90" ry="48"/><ellipse cx="400" cy="130" rx="40" ry="22"/>
+        </g>
+        <circle cx="170" cy="120" r="5" fill="var(--data)"/><text x="150" y="104" class="sub">w₁*</text>
+        <circle cx="400" cy="130" r="5" fill="var(--data)"/><text x="410" y="114" class="sub">w₂*</text>
+        <circle cx="285" cy="125" r="6" fill="var(--ink)"/><text x="268" y="152" class="lbl">w*</text>
+        <circle cx="290" cy="40" r="5" fill="var(--model)"/><text x="300" y="36" class="sub">wᵗ</text>
+        <path d="M290 40 Q230 70 190 112" class="arrow-d" marker-end="url(#ah-d)"/>
+        <path d="M290 40 Q360 70 388 120" class="arrow-d" marker-end="url(#ah-d)"/>
+        <path d="M290 40 L288 112" class="arrow-m" marker-end="url(#ah-m)"/>
+        <text x="40" y="232" class="sub">Local SGD drifts to each client's optimum; the average of drifted models is not w*.</text>
+      </svg>
+    </figure>
+    <p>Under the bounded gradient dissimilarity assumption \(\frac1K\sum_k\|\nabla F_k(w)\|^2\le G^2+B^2\|\nabla F(w)\|^2\), FedAvg's error has a term growing with \(\eta^2\tau^2G^2\). Three families of fixes:</p>
+    <p><strong>Proximal regularisation.</strong> FedProx [9] has each client minimise \(F_k(w)+\frac{\mu}{2}\|w-w^t\|^2\), limiting how far local iterates travel.</p>
+    <p><strong>Control variates.</strong> SCAFFOLD [5] keeps a server variate \(c\) and client variates \(c_k\) estimating the gradient gap, and corrects each local step: \(w\leftarrow w-\eta\,(g_k(w)-c_k+c)\). This removes the dependence on \(G\) but needs stateful clients.</p>
+    <p><strong>Personalisation.</strong> When a single \(w^\star\) is the wrong target, optimise per-client models coupled to a global one, e.g. Ditto's \(\min_{v_k}F_k(v_k)+\frac{\lambda}{2}\|v_k-w^\star\|^2\), local fine-tuning, or meta-learning initialisations.</p>
+  </div>
+</section>
+
+<!-- ───────── PRIVACY ───────── -->
+<section id="private">
+  <div class="col">
+    <h2>Is it private?</h2>
+    <div class="callout">
+      <p class="big">Keeping the data at home is not the same as keeping it private.</p>
+      <p class="gen" style="margin-top:8px">The updates clients send are calculated from their data, so they carry information about it.</p>
+      <p class="tech" style="margin-top:8px">Updates are deterministic functions of \(D_k\); without further mechanisms FL offers data locality, not a privacy guarantee.</p>
+    </div>
+
+    <p class="gen" style="margin-top:22px">Researchers have shown that in some conditions, a server can partly or fully rebuild training examples from the updates it receives. Updates can also reveal whether a particular person's data was used. And because nobody sees the data, a malicious client can send a doctored update to damage the model or hide a backdoor in it.</p>
+
+    <div class="tech" style="margin-top:22px">
+      <h3>Why updates leak</h3>
+      <p>For a fully connected layer \(z=Wx+b\), the gradients are \(\nabla_W\ell=\delta x^\top\) and \(\nabla_b\ell=\delta\) with \(\delta=\partial\ell/\partial z\). For a single example, any row with \(\delta_i\neq0\) gives the input exactly:</p>
+      \[x^\top=\frac{(\nabla_W\ell)_{i,:}}{(\nabla_b\ell)_i}.\]
+      <p>For deeper networks and batches, gradient inversion solves \(\min_{x',y'}\;d\big(\nabla_w\ell(w;x',y'),\,\nabla_w\ell(w;x,y)\big)+\alpha\,\mathcal{R}(x')\), with \(d\) the Euclidean distance (DLG [12]) or cosine distance plus a total-variation prior (Geiping et al. [13]); the latter recovers recognisable images from multi-image batches and from FedAvg updates with several local steps. For cross-entropy the label of a single example follows from the sign pattern of the last-layer gradient (iDLG [14]). White-box membership inference against FL participants is also effective [15]. On the integrity side, model replacement attacks scale a backdoored update by roughly \(K/\eta\) so it survives averaging [16].</p>
+    </div>
+  </div>
+
+  <div class="wide">
+    <figure class="panel">
+      <div class="demo">
+        <div><div class="grid-lbl">What the client holds</div><div class="pix" id="pix-orig"></div></div>
+        <div><div class="grid-lbl">What the server rebuilds</div><div class="pix" id="pix-rec"></div></div>
+        <div class="meters">
+          <div>
+            <div class="slider-lbl"><span>Privacy noise</span><span id="sig-out">0.00</span></div>
+            <input type="range" id="sigma" min="0" max="2" step="0.05" value="0" aria-label="Privacy noise level">
+          </div>
+          <div class="meter-row"><div class="top"><span>How recognisable the record is</span><b id="leak-out"></b></div><div class="meter"><span id="leak-bar" style="background:var(--risk)"></span></div></div>
+          <div class="meter-row"><div class="top"><span>How useful the model is</span><b id="util-out"></b></div><div class="meter"><span id="util-bar" style="background:var(--model)"></span></div></div>
+        </div>
+      </div>
+      <figcaption class="gen">Illustrative. Drag the slider: adding noise hides the record, but it also makes the model worse. Picking the level is a decision, not a default.</figcaption>
+      <figcaption class="tech">Illustrative. Reconstruction is \(x+\sigma z\) for fixed \(z\sim\mathcal N(0,I)\); the left meter is \(\max(0,\cos(x,\hat x))\). The utility curve is a stylised monotone decay, not a measured result.</figcaption>
+    </figure>
+  </div>
+
+  <div class="col">
+    <h3>The three standard defences</h3>
+    <div class="defs">
+      <div>
+        <h4>Secure aggregation</h4>
+        <div>
+          <p class="gen">A cryptographic protocol that lets the server see only the total of all updates, never any single one.</p>
+          <p class="tech">Bonawitz et al. [3]: clients \(i<j\) agree on seeds \(s_{ij}\) by Diffie–Hellman; client \(i\) sends \(y_i=x_i+\sum_{j>i}\mathrm{PRG}(s_{ij})-\sum_{j<i}\mathrm{PRG}(s_{ij})\bmod R\). Masks cancel in \(\sum_i y_i\). Dropouts are handled with \(t\)-of-\(n\) Shamir shares of the seeds; secure against a server colluding with fewer than \(t\) clients. Cost is \(\mathcal{O}(n^2)\) in the original protocol and \(\mathcal{O}(n\log n)\) with sparse communication graphs.</p>
+          <p class="cost">Protects individual updates. Doesn't hide what the total reveals.</p>
+        </div>
+      </div>
+      <div>
+        <h4>Differential privacy</h4>
+        <div>
+          <p class="gen">Caps how much any one person or participant can change the model, by trimming each update and adding carefully measured noise. It gives a provable privacy guarantee.</p>
+          <p class="tech">DP-FedAvg [4] provides user-level \((\varepsilon,\delta)\)-DP, where neighbouring datasets differ in one client's entire data: clip \(\bar\Delta_k=\Delta_k\min(1,S/\|\Delta_k\|_2)\), then release \(\frac{1}{qK}\big(\sum_{k\in S_t}\bar\Delta_k+\mathcal N(0,\sigma^2S^2I)\big)\). Privacy loss over \(T\) rounds with sampling rate \(q\) is tracked with the moments or Rényi accountant [17]; roughly \(\varepsilon=\mathcal{O}\big(q\sqrt{T\log(1/\delta)}/\sigma\big)\). Central DP with secure aggregation needs distributed noise generation; local DP avoids trusting the server at a much higher utility cost.</p>
+          <p class="cost">Protects against what the model and totals reveal. Costs accuracy.</p>
+        </div>
+      </div>
+      <div>
+        <h4>Robust aggregation</h4>
+        <div>
+          <p class="gen">Replaces the simple average with methods that ignore extreme updates, making it harder for one bad participant to poison the model.</p>
+          <p class="tech">Krum [18] selects the update minimising the summed distance to its \(n-f-2\) nearest neighbours (tolerates \(f\) Byzantine clients with \(2f+2<n\)); coordinate-wise median and trimmed mean have order-optimal statistical rates [19]. These rules need per-update visibility and therefore conflict with secure aggregation unless evaluated inside MPC; norm bounding is the usual compromise.</p>
+          <p class="cost">Protects the model's integrity. Can penalise honest but unusual clients.</p>
+        </div>
+      </div>
+    </div>
+
+    <h3>Secure aggregation, in three numbers</h3>
+    <p class="gen">Each pair of clients agrees on a random mask. One adds it, the other subtracts it. Individually the numbers the server receives look random. Added up, the masks cancel and only the true total remains.</p>
+    <p class="tech">Toy instance with pairwise masks \(m_{AB}=7\), \(m_{AC}=9\), \(m_{BC}=4\) (in practice PRG outputs over \(\mathbb{Z}_R^d\)).</p>
+    <div class="tbl-wrap">
+      <table class="mask">
+        <thead><tr><th>Client</th><th>True value</th><th>Masks added</th><th>Server receives</th></tr></thead>
+        <tbody>
+          <tr><td>A</td><td>5</td><td>+7 +9</td><td>21</td></tr>
+          <tr><td>B</td><td>3</td><td>−7 +4</td><td>0</td></tr>
+          <tr><td>C</td><td>6</td><td>−9 −4</td><td>−7</td></tr>
+          <tr class="sum"><td>Total</td><td>14</td><td>0</td><td class="hl">14</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="gen" style="margin-top:18px"><strong>The honest summary:</strong> federated learning is a strong foundation for privacy, not a guarantee of it. It moves the risk from a central database to the model updates, and those updates need their own protection.</p>
+  </div>
+</section>
+
+<!-- ───────── WHEN ───────── -->
+<section id="when">
+  <div class="col">
+    <h2>Should you use it?</h2>
+    <p class="gen">Federated learning adds real complexity. Answer four questions to see whether it's likely to pay off.</p>
+    <p class="tech">A quick screen before committing to the engineering and governance overhead.</p>
+    <div class="panel" style="margin-top:18px">
+      <ul class="qs" id="qs">
+        <li data-q="0"><span>Is moving the data to one place blocked, or too risky?</span><span class="seg"><button type="button" data-a="1" aria-pressed="false">Yes</button><button type="button" data-a="0" aria-pressed="false">No</button></span></li>
+        <li data-q="1"><span>Is the data spread across several owners or many devices?</span><span class="seg"><button type="button" data-a="1" aria-pressed="false">Yes</button><button type="button" data-a="0" aria-pressed="false">No</button></span></li>
+        <li data-q="2"><span>Would a shared model beat what each one can train alone?</span><span class="seg"><button type="button" data-a="1" aria-pressed="false">Yes</button><button type="button" data-a="0" aria-pressed="false">No</button></span></li>
+        <li data-q="3"><span>Can the team work without inspecting the raw data?</span><span class="seg"><button type="button" data-a="1" aria-pressed="false">Yes</button><button type="button" data-a="0" aria-pressed="false">No</button></span></li>
+      </ul>
+      <div class="verdict" id="verdict" aria-live="polite">Answer the four questions to see a suggestion.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── START ───────── -->
+<section id="start">
+  <div class="col">
+    <h2>Getting started</h2>
+    <p>Open-source frameworks handle the coordination for you, and all of them let you simulate a federation on one laptop before deploying anything real.</p>
+    <div class="tbl-wrap">
+      <table class="fw">
+        <thead><tr><th>Framework</th><th>Good for</th></tr></thead>
+        <tbody>
+          <tr><td>Flower</td><td>A flexible starting point. Works with PyTorch, TensorFlow, JAX or scikit-learn, from simulation to production.</td></tr>
+          <tr><td>TensorFlow Federated</td><td>Research and simulation of federated algorithms in the TensorFlow ecosystem.</td></tr>
+          <tr><td>NVIDIA FLARE</td><td>Cross-silo projects between organisations, common in healthcare.</td></tr>
+          <tr><td>FATE</td><td>Cross-organisation and vertical setups, with built-in encryption.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:22px" class="gen">Federated learning won't replace centralised training. It widens what's possible: models can now learn from data that used to be completely out of reach.</p>
+
+    <div class="tech">
+      <h3>Open problems</h3>
+      <p>Tight privacy–utility trade-offs for large models under user-level DP; compatibility of Byzantine robustness with secure aggregation; fairness across clients (e.g. q-FFL) versus average accuracy; federated unlearning with verifiable guarantees; incentive design and contribution valuation in cross-silo settings; and federated fine-tuning of foundation models under tight communication budgets [2].</p>
+      <h3>References</h3>
+      <ol class="refs">
+        <li>McMahan et al. Communication-Efficient Learning of Deep Networks from Decentralized Data. AISTATS 2017.</li>
+        <li>Kairouz et al. Advances and Open Problems in Federated Learning. Foundations and Trends in ML, 2021.</li>
+        <li>Bonawitz et al. Practical Secure Aggregation for Privacy-Preserving Machine Learning. ACM CCS 2017.</li>
+        <li>McMahan, Ramage, Talwar, Zhang. Learning Differentially Private Recurrent Language Models. ICLR 2018.</li>
+        <li>Karimireddy et al. SCAFFOLD: Stochastic Controlled Averaging for Federated Learning. ICML 2020.</li>
+        <li>Hard et al. Federated Learning for Mobile Keyboard Prediction. arXiv:1811.03604, 2018.</li>
+        <li>Li, Huang, Yang, Wang, Zhang. On the Convergence of FedAvg on Non-IID Data. ICLR 2020.</li>
+        <li>Reddi et al. Adaptive Federated Optimization. ICLR 2021.</li>
+        <li>Li et al. Federated Optimization in Heterogeneous Networks (FedProx). MLSys 2020.</li>
+        <li>Wang et al. Tackling the Objective Inconsistency Problem in Heterogeneous Federated Optimization (FedNova). NeurIPS 2020.</li>
+        <li>Li, Sahu, Talwalkar, Smith. Federated Learning: Challenges, Methods, and Future Directions. IEEE Signal Processing Magazine, 2020.</li>
+        <li>Zhu, Liu, Han. Deep Leakage from Gradients. NeurIPS 2019.</li>
+        <li>Geiping, Bauermeister, Dröge, Moeller. Inverting Gradients: How Easy Is It to Break Privacy in Federated Learning? NeurIPS 2020.</li>
+        <li>Zhao, Mopuri, Bilen. iDLG: Improved Deep Leakage from Gradients. arXiv:2001.02610, 2020.</li>
+        <li>Nasr, Shokri, Houmansadr. Comprehensive Privacy Analysis of Deep Learning. IEEE S&amp;P 2019.</li>
+        <li>Bagdasaryan et al. How To Backdoor Federated Learning. AISTATS 2020.</li>
+        <li>Mironov. Rényi Differential Privacy. IEEE CSF 2017.</li>
+        <li>Blanchard et al. Machine Learning with Adversaries: Byzantine Tolerant Gradient Descent. NeurIPS 2017.</li>
+        <li>Yin et al. Byzantine-Robust Distributed Learning: Towards Optimal Statistical Rates. ICML 2018.</li>
+      </ol>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer><div class="col">Federated learning: training a model without collecting the data</div></footer>
+
+<script>
+(function(){
+"use strict";
+var root=document.documentElement, NS="http://www.w3.org/2000/svg";
+var reduce=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+function el(tag,attrs,parent){var e=document.createElementNS(NS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e;}
+function txt(parent,x,y,s,cls,anchor){var t=el("text",{x:x,y:y,"class":cls||"lbl","text-anchor":anchor||"middle"},parent);t.textContent=s;return t;}
+function defs(svg){var d=el("defs",{},svg);
+  [["m","var(--model)"],["d","var(--data)"],["r","var(--risk)"]].forEach(function(p){
+    var m=el("marker",{id:svg.id+"-a"+p[0],viewBox:"0 0 10 10",refX:"8",refY:"5",markerWidth:"7",markerHeight:"7",orient:"auto-start-reverse"},d);
+    el("path",{d:"M0,0L10,5L0,10z",fill:p[1]},m);});}
+function client(g,x,y,w,h,label,dots){
+  el("rect",{x:x-w/2,y:y-h/2,width:w,height:h,rx:10,"class":"node"},g);
+  for(var i=0;i<dots;i++) el("circle",{cx:x-(dots-1)*7+i*14,cy:y-4,r:4.5,"class":"dot"},g);
+  if(label) txt(g,x,y+h/2-8,label,"sub");
+}
+function server(g,x,y,r,label){el("circle",{cx:x,cy:y,r:r,"class":"srv"},g);if(label!=="")txt(g,x,y+5,label===undefined?"Server":label);}
+function shorten(x1,y1,x2,y2,a,b){var dx=x2-x1,dy=y2-y1,L=Math.hypot(dx,dy);return [x1+dx*a/L,y1+dy*a/L,x2-dx*b/L,y2-dy*b/L];}
+
+/* hero */
+(function(){
+  var svg=document.getElementById("hero"),cx=450,cy=190;
+  var pts=[[120,80],[120,300],[450,335],[780,300],[780,80],[450,45]];
+  var names=["Phone","Hospital","Car","Bank","Laptop","Watch"];
+  var g=el("g",{},svg);
+  pts.forEach(function(p){el("line",{x1:cx,y1:cy,x2:p[0],y2:p[1],"class":"link"},g);});
+  server(g,cx,cy,52,"Server");
+  txt(g,cx,cy+24,"shared model","sub");
+  pts.forEach(function(p,i){client(g,p[0],p[1],118,62,names[i],3);});
+  if(reduce) return;
+  pts.forEach(function(p,i){
+    var s=shorten(cx,cy,p[0],p[1],54,34);
+    var path="M"+s[0]+","+s[1]+" L"+s[2]+","+s[3];
+    var pk=el("rect",{x:-6,y:-6,width:12,height:12,rx:3,"class":"pk"},svg);
+    el("animateMotion",{dur:"4.8s",repeatCount:"indefinite",begin:(i*0.35)+"s",path:path,keyPoints:"0;1;1;0;0",keyTimes:"0;0.35;0.5;0.85;1",calcMode:"linear"},pk);
+  });
+})();
+
+/* centralised vs federated */
+function miniHub(id,mode){
+  var svg=document.getElementById(id); defs(svg);
+  var cx=210,cy=110,pts=[[60,45],[60,175],[360,45],[360,175]];
+  var g=el("g",{},svg);
+  server(g,cx,cy,34,mode==="c"?"Server":"Server");
+  if(mode==="c"){ el("circle",{cx:cx-10,cy:cy+14,r:4,"class":"dot"},g);el("circle",{cx:cx,cy:cy+14,r:4,"class":"dot"},g);el("circle",{cx:cx+10,cy:cy+14,r:4,"class":"dot"},g); }
+  pts.forEach(function(p){
+    client(g,p[0],p[1],96,52,"",mode==="c"?0:3);
+    if(mode==="c"){ el("rect",{x:p[0]-48,y:p[1]-26,width:96,height:52,rx:10,fill:"none",stroke:"var(--rule)","stroke-dasharray":"4 4"},g); txt(g,p[0],p[1]+4,"data copied","sub"); }
+    var s=shorten(p[0],p[1],cx,cy,40,40);
+    if(mode==="c"){ el("line",{x1:s[0],y1:s[1],x2:s[2],y2:s[3],"class":"arrow-d","marker-end":"url(#"+id+"-ad)"},g); }
+    else{
+      var o=5,nx=-(s[3]-s[1]),ny=(s[2]-s[0]),L=Math.hypot(nx,ny);nx=nx/L*o;ny=ny/L*o;
+      el("line",{x1:s[2]+nx,y1:s[3]+ny,x2:s[0]+nx,y2:s[1]+ny,"class":"arrow-m","marker-end":"url(#"+id+"-am)"},g);
+      el("line",{x1:s[0]-nx,y1:s[1]-ny,x2:s[2]-nx,y2:s[3]-ny,"class":"arrow-m","stroke-dasharray":"5 4","marker-end":"url(#"+id+"-am)"},g);
+    }
+  });
+}
+miniHub("vs-central","c"); miniHub("vs-fed","f");
+
+/* round stepper */
+(function(){
+  var svg=document.getElementById("round"); defs(svg);
+  var cx=230,cy=170,pts=[[70,60],[390,60],[70,280],[390,280]];
+  var base=el("g",{},svg),gOut=el("g",{"class":"grp g-out"},svg),gTrain=el("g",{"class":"grp g-train"},svg),gIn=el("g",{"class":"grp g-in"},svg),gAgg=el("g",{"class":"grp g-agg"},svg);
+  server(base,cx,cy,46,"");
+  var ver=txt(base,cx,cy+2,"v1","lbl"); ver.setAttribute("font-size","18");
+  txt(base,cx,cy+22,"model","sub");
+  pts.forEach(function(p){
+    client(base,p[0],p[1],110,58,"",3);
+    var s=shorten(cx,cy,p[0],p[1],50,34),nx=-(s[3]-s[1]),ny=(s[2]-s[0]),L=Math.hypot(nx,ny);nx=nx/L*6;ny=ny/L*6;
+    el("line",{x1:s[0]+nx,y1:s[1]+ny,x2:s[2]+nx,y2:s[3]+ny,"class":"arrow-m","marker-end":"url(#round-am)"},gOut);
+    el("line",{x1:s[2]-nx,y1:s[3]-ny,x2:s[0]-nx,y2:s[1]-ny,"class":"arrow-m","stroke-dasharray":"5 4","marker-end":"url(#round-am)"},gIn);
+    el("rect",{x:p[0]-62,y:p[1]-35,width:124,height:70,rx:14,"class":"ring"},gTrain);
+    txt(gTrain,p[0],p[1]+20,"training…","sub");
+  });
+  txt(gAgg,cx,cy-62,"average the updates","sub");
+  var steps=[].slice.call(document.querySelectorAll("#steps li")),cur=1,version=1;
+  function go(s){
+    if(s===1 && cur===4){version++;ver.textContent="v"+version;}
+    cur=s;svg.setAttribute("data-s",s);
+    steps.forEach(function(li){li.classList.toggle("on",+li.dataset.s===s);});
+    document.getElementById("next").textContent=s===4?"Next round":"Next step";
+  }
+  steps.forEach(function(li){li.addEventListener("click",function(){go(+li.dataset.s);});});
+  document.getElementById("next").addEventListener("click",function(){go(cur===4?1:cur+1);});
+  document.getElementById("prev").addEventListener("click",function(){go(cur===1?1:cur-1);});
+})();
+
+/* cross-device / cross-silo */
+(function(){
+  var s=document.getElementById("crossdevice"),g=el("g",{},s);
+  var r=mulberry(3);
+  for(var i=0;i<70;i++){var x=20+r()*380,y=12+r()*96;el("circle",{cx:x,cy:y,r:3.2,"class":"dot",opacity:r()<0.3?0.25:1},g);}
+  var t=document.getElementById("crosssilo"),h=el("g",{},t);
+  [70,165,260,355].forEach(function(x){
+    el("rect",{x:x-34,y:26,width:68,height:78,rx:8,"class":"node"},h);
+    for(var a=0;a<3;a++)for(var b=0;b<3;b++)el("circle",{cx:x-14+b*14,cy:48+a*18,r:4,"class":"dot"},h);
+  });
+})();
+
+/* horizontal / vertical */
+function splitGrid(id,mode){
+  var svg=document.getElementById(id),g=el("g",{},svg),R=6,C=6,w=46,h=22,x0=14,y0=34;
+  for(var c=0;c<C;c++) txt(g,x0+c*w+w/2,y0-10,["age","bmi","bp","lab","scan","dx"][c],"sub");
+  if(mode==="v"){for(var c2=0;c2<C;c2++) svg.querySelectorAll("text")[c2].textContent=["age","city","income","credit","cart","visits"][c2];}
+  for(var i=0;i<R;i++)for(var j=0;j<C;j++){
+    var a=mode==="h"?(i<3):(j<3);
+    el("rect",{x:x0+j*w+2,y:y0+i*h+2,width:w-4,height:h-4,rx:4,fill:a?"var(--data-tint)":"var(--model-tint)",stroke:a?"var(--data)":"var(--model)","stroke-width":1},g);
+  }
+  if(mode==="h"){txt(g,x0+C*w+8,y0+1.5*h+4,"A","lbl","start");txt(g,x0+C*w+8,y0+4.5*h+4,"B","lbl","start");}
+  else{txt(g,x0+1.5*w,y0+R*h+18,"Bank","lbl");txt(g,x0+4.5*w,y0+R*h+18,"Retailer","lbl");}
+}
+splitGrid("horiz","h"); splitGrid("vert","v");
+
+/* challenge icons */
+(function(){
+  var s=document.getElementById("ch-noniid"),g=el("g",{},s);
+  var dist=[[.7,.2,.1,.05],[.1,.15,.6,.3],[.25,.25,.25,.25]];
+  dist.forEach(function(d,k){var x0=10+k*85;el("line",{x1:x0,y1:84,x2:x0+70,y2:84,stroke:"var(--rule)"},g);
+    d.forEach(function(v,i){el("rect",{x:x0+4+i*17,y:84-v*70,width:12,height:v*70,rx:2,fill:i%2?"var(--model)":"var(--data)",opacity:.85},g);});});
+  var c=document.getElementById("ch-comm"),h=el("g",{},c);defs(c);
+  el("circle",{cx:40,cy:48,r:22,"class":"srv"},h);el("rect",{x:190,y:26,width:56,height:44,rx:8,fill:"var(--surface)",stroke:"var(--rule)","stroke-width":1.5},h);
+  for(var i=0;i<4;i++) el("rect",{x:78+i*26,y:42,width:18,height:12,rx:3,fill:"var(--model)",opacity:1-i*0.18},h);
+  el("line",{x1:70,y1:74,x2:180,y2:74,"class":"arrow-m","marker-end":"url(#ch-comm-am)","marker-start":"url(#ch-comm-am)"},h);
+  var d=document.getElementById("ch-drop"),k=el("g",{},d);
+  for(var j=0;j<6;j++){var x=18+j*40,on=[1,0,1,1,0,1][j];el("rect",{x:x,y:30,width:28,height:44,rx:6,fill:"var(--surface)",stroke:on?"var(--model)":"var(--rule)","stroke-width":1.5,"stroke-dasharray":on?"":"3 3"},k);
+    el("circle",{cx:x+14,cy:52,r:4,fill:on?"var(--data)":"var(--rule)"},k);}
+  var b=document.getElementById("ch-blind"),m=el("g",{},b);
+  el("rect",{x:20,y:18,width:120,height:66,rx:8,fill:"var(--surface)",stroke:"var(--rule)","stroke-width":1.5},m);
+  for(var a=0;a<3;a++)for(var q=0;q<5;q++)el("circle",{cx:38+q*21,cy:36+a*16,r:4,"class":"dot"},m);
+  el("rect",{x:20,y:18,width:120,height:66,rx:8,fill:"var(--ground)",opacity:.78},m);
+  el("circle",{cx:196,cy:50,r:22,fill:"none",stroke:"var(--muted)","stroke-width":2.5},m);
+  el("line",{x1:212,y1:66,x2:236,y2:88,stroke:"var(--muted)","stroke-width":3,"stroke-linecap":"round"},m);
+  el("line",{x1:180,y1:34,x2:212,y2:66,stroke:"var(--risk)","stroke-width":2.5},m);
+})();
+
+/* privacy noise demo */
+function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+(function(){
+  var shape=["0000000000","0011111100","0110000110","0100110010","0101001010","0101001010","0100110010","0110000110","0011111100","0000000000"].join("").split("").map(Number);
+  var r=mulberry(11),z=shape.map(function(){var u=1-r(),v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);});
+  var o=document.getElementById("pix-orig"),rc=document.getElementById("pix-rec"),cells=[];
+  shape.forEach(function(v){var a=document.createElement("i");a.style.background=v?"var(--data)":"var(--rule-soft)";o.appendChild(a);
+    var b=document.createElement("i");rc.appendChild(b);cells.push(b);});
+  var sl=document.getElementById("sigma");
+  function paint(){
+    var s=+sl.value,rec=shape.map(function(v,i){return v+s*z[i];}),dot=0,na=0,nb=0;
+    rec.forEach(function(v,i){dot+=v*shape[i];na+=v*v;nb+=shape[i]*shape[i];
+      var c=Math.max(0,Math.min(1,v));cells[i].style.background="color-mix(in srgb, var(--data) "+Math.round(c*100)+"%, var(--rule-soft))";});
+    var leak=Math.max(0,dot/Math.sqrt(na*nb)),util=Math.max(0.05,1-0.55*s*s/(1+s*s)-0.08*s);
+    document.getElementById("sig-out").textContent=s.toFixed(2);
+    document.getElementById("leak-out").textContent=Math.round(leak*100)+"%";
+    document.getElementById("util-out").textContent=Math.round(util*100)+"%";
+    document.getElementById("leak-bar").style.width=(leak*100)+"%";
+    document.getElementById("util-bar").style.width=(util*100)+"%";
+  }
+  sl.addEventListener("input",paint);paint();
+})();
+
+/* decision helper */
+(function(){
+  var ans=[null,null,null,null],v=document.getElementById("verdict");
+  [].slice.call(document.querySelectorAll("#qs li")).forEach(function(li){
+    var q=+li.dataset.q,btns=[].slice.call(li.querySelectorAll("button"));
+    btns.forEach(function(b){b.addEventListener("click",function(){
+      ans[q]=+b.dataset.a;btns.forEach(function(x){x.setAttribute("aria-pressed",x===b?"true":"false");});update();});});
+  });
+  function update(){
+    if(ans.indexOf(null)>-1){v.className="verdict";v.textContent="Answer the four questions to see a suggestion.";return;}
+    var score=ans.reduce(function(a,b){return a+b;},0);
+    if(ans[0]===0){v.className="verdict no";v.textContent="If the data can be centralised safely and legally, standard training is usually simpler, cheaper and easier to debug.";}
+    else if(ans[1]===0){v.className="verdict no";v.textContent="With a single data source there's nothing to federate. Look at on-premise training or privacy-preserving analytics instead.";}
+    else if(score===4){v.className="verdict";v.textContent="Strong fit. Plan secure aggregation and differential privacy from day one, not as an afterthought.";}
+    else if(ans[2]===0){v.className="verdict no";v.textContent="Possible, but weak payoff. If each party can train a good model alone, federation adds cost without much gain.";}
+    else{v.className="verdict";v.textContent="Promising, but budget for federated tooling to validate and debug data you can't see.";}
+  }
+})();
+
+/* reading level + theme */
+function setLevel(l,save){
+  root.setAttribute("data-level",l);
+  document.querySelectorAll("[data-set-level]").forEach(function(b){b.setAttribute("aria-pressed",b.dataset.setLevel===l?"true":"false");});
+  if(save){try{localStorage.setItem("fl-level",l);}catch(e){}}
+}
+document.querySelectorAll("[data-set-level]").forEach(function(b){b.addEventListener("click",function(){
+  var anchor=b.getBoundingClientRect().top; setLevel(b.dataset.setLevel,true);
+  try{history.replaceState(null,"","?level="+b.dataset.setLevel+location.hash);}catch(e){}
+});});
+var q=new URLSearchParams(location.search).get("level"),saved=null;
+try{saved=localStorage.getItem("fl-level");}catch(e){}
+setLevel(q==="technical"||q==="general"?q:(saved==="technical"?"technical":"general"),false);
+
+try{var th=localStorage.getItem("blog-theme");if(th==="light"||th==="dark")root.setAttribute("data-theme",th);}catch(e){}
+document.getElementById("theme").addEventListener("click",function(){
+  var cur=root.getAttribute("data-theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");
+  var next=cur==="dark"?"light":"dark";root.setAttribute("data-theme",next);
+  try{localStorage.setItem("blog-theme",next);}catch(e){}
+});
+
+/* maths */
+window.addEventListener("load",function(){
+  if(window.renderMathInElement) renderMathInElement(document.body,{delimiters:[{left:"\\[",right:"\\]",display:true},{left:"\\(",right:"\\)",display:false}],throwOnError:false});
+});
+})();
+</script>
+</body>
+</html>

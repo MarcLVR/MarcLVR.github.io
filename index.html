@@ -165,7 +165,7 @@ section:first-of-type{border-top:none}
   width:32px;height:28px;font-size:13px;line-height:1;border-radius:2px;flex:none;
 }
 .tgl:hover{color:var(--ink);border-color:var(--ink)}
-@media(max-width:800px){.topnav a{display:none}}
+@media(max-width:800px){.topnav a:not(.nav-blog){display:none}}
 
 /* ─────────────────────────────  HERO  ───────────────────────────── */
 .hero{padding-block:clamp(56px,10vw,104px) clamp(48px,7vw,80px);border-top:none}
@@ -349,6 +349,7 @@ footer{padding:26px 0 34px}
       <a href="#projects">Projects</a>
       <a href="#experience">Experience</a>
       <a href="#contact">Contact</a>
+      <a href="blog/index.html" class="nav-blog">Blog</a>
       <button class="tgl" id="themeToggle" title="Switch light / dark" aria-label="Switch colour theme">◐</button>
     </nav>
   </div>
