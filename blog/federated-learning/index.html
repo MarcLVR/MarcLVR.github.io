@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Federated learning: training a model without collecting the data</title>
 <meta name="description" content="How federated learning works, where it breaks, and when it's worth it. Read it as a visual overview or as a technical deep dive.">
+<link rel="canonical" href="https://marclvr.github.io/blog/federated-learning/">
+<meta property="og:url" content="https://marclvr.github.io/blog/federated-learning/">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Federated learning: training a model without collecting the data">
+<meta property="og:description" content="How federated learning works, where it breaks, and when it's worth it. A visual overview or a technical deep dive.">
+<meta property="og:image" content="https://avatars.githubusercontent.com/u/26000284?v=4">
+<meta name="twitter:card" content="summary">
+<meta name="author" content="Marc Pérez Bernús">
+<link rel="icon" href="https://avatars.githubusercontent.com/u/26000284?v=4">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&family=Public+Sans:ital,wght@0,400..700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -278,7 +287,7 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
       <svg id="round" class="dg" viewBox="0 0 460 340" data-s="1" aria-label="One round of federated averaging"></svg>
       <div>
         <ol class="steps" id="steps">
-          <li class="on" data-s="1"><b>Send the model</b><span class="gen">The server sends the current model to a group of clients.</span><span class="tech">Server samples \(S_t\subseteq[K]\), \(|S_t|=\max(\lfloor CK\rfloor,1)\), and broadcasts \(w^t\).</span></li>
+          <li class="on" data-s="1"><b>Send the model</b><span class="gen">The server sends the current model to a group of clients.</span><span class="tech">Server samples \(S_t\subseteq[K]\), \(|S_t|=\max(\lceil CK\rceil,1)\), and broadcasts \(w^t\).</span></li>
           <li data-s="2"><b>Train locally</b><span class="gen">Each client trains its copy on its own data for a short while.</span><span class="tech">Each \(k\in S_t\) runs \(\tau=E\,n_k/B\) steps of SGD on \(F_k\) from \(w^t\).</span></li>
           <li data-s="3"><b>Send back the update</b><span class="gen">Clients send back only how the model changed, never the data.</span><span class="tech">Client returns \(\Delta_k^t=w_k^{t,\tau}-w^t\).</span></li>
           <li data-s="4"><b>Combine</b><span class="gen">The server averages the updates into a better model, then starts the next round.</span><span class="tech">\(w^{t+1}=w^t+\sum_{k\in S_t}\frac{n_k}{\sum_{j\in S_t}n_j}\Delta_k^t\).</span></li>
@@ -327,7 +336,7 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
         <svg id="crossdevice" class="dg" viewBox="0 0 420 120" aria-hidden="true" style="margin-bottom:10px"></svg>
         <h4>Cross-device</h4>
         <p class="gen">Millions of phones, watches or cars. Each holds a little data, is often offline, and joins only a few rounds.</p>
-        <p class="tech">\(K\sim10^6\)–\(10^{10}\), each client stateless and available with low probability per round; participation is sampled, dropouts are the norm, and per-client state (as in SCAFFOLD) is impractical. Secure aggregation and user-level DP are standard.</p>
+        <p class="tech">\(K\sim10^6\)–\(10^{10}\), each client stateless and available with low probability per round; participation is sampled, dropouts are the norm, and per-client state (as in SCAFFOLD) is impractical. Secure aggregation and user-level DP are standard; Gboard next-word prediction is the canonical production example [6].</p>
         <dl class="facts"><dt>Clients</dt><dd>Millions</dd><dt>Hard part</dt><dd>Unreliable devices, bandwidth</dd><dt>Example</dt><dd>Keyboard prediction</dd></dl>
       </div>
       <div>
@@ -548,6 +557,7 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
       </table>
     </div>
     <p style="margin-top:22px" class="gen">Federated learning won't replace centralised training. It widens what's possible: models can now learn from data that used to be completely out of reach.</p>
+    <p class="mode-note" style="margin-top:22px">Related: <a href="../mixture-of-experts/index.html">Mixture of Experts</a>, including how MoE and federated learning fit together.</p>
 
     <div class="tech">
       <h3>Open problems</h3>
@@ -766,18 +776,18 @@ function setLevel(l,save){
   if(save){try{localStorage.setItem("fl-level",l);}catch(e){}}
 }
 document.querySelectorAll("[data-set-level]").forEach(function(b){b.addEventListener("click",function(){
-  var anchor=b.getBoundingClientRect().top; setLevel(b.dataset.setLevel,true);
+  setLevel(b.dataset.setLevel,true);
   try{history.replaceState(null,"","?level="+b.dataset.setLevel+location.hash);}catch(e){}
 });});
 var q=new URLSearchParams(location.search).get("level"),saved=null;
 try{saved=localStorage.getItem("fl-level");}catch(e){}
 setLevel(q==="technical"||q==="general"?q:(saved==="technical"?"technical":"general"),false);
 
-try{var th=localStorage.getItem("blog-theme");if(th==="light"||th==="dark")root.setAttribute("data-theme",th);}catch(e){}
+try{var th=localStorage.getItem("theme");if(th==="light"||th==="dark")root.setAttribute("data-theme",th);}catch(e){}
 document.getElementById("theme").addEventListener("click",function(){
   var cur=root.getAttribute("data-theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");
   var next=cur==="dark"?"light":"dark";root.setAttribute("data-theme",next);
-  try{localStorage.setItem("blog-theme",next);}catch(e){}
+  try{localStorage.setItem("theme",next);}catch(e){}
 });
 
 /* maths */

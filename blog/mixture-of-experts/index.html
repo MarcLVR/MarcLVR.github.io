@@ -1,0 +1,939 @@
+<!doctype html>
+<html lang="en" data-level="general">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mixture of Experts: huge models that only use a fraction of themselves</title>
+<meta name="description" content="How Mixture-of-Experts models work, why they make large language models cheaper to run, where they break, and what they change for governance and privacy. Read it as a visual overview or as a technical deep dive.">
+<link rel="canonical" href="https://marclvr.github.io/blog/mixture-of-experts/">
+<meta property="og:url" content="https://marclvr.github.io/blog/mixture-of-experts/">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Mixture of Experts: huge models that only use a fraction of themselves">
+<meta property="og:description" content="How MoE models work, why they are cheaper to run, where they break, and what they change for governance and privacy. A visual overview or a technical deep dive.">
+<meta property="og:image" content="https://avatars.githubusercontent.com/u/26000284?v=4">
+<meta name="twitter:card" content="summary">
+<meta name="author" content="Marc Pérez Bernús">
+<link rel="icon" href="https://avatars.githubusercontent.com/u/26000284?v=4">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&family=Public+Sans:ital,wght@0,400..700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+:root{
+  --ground:#F3F5F8; --surface:#FFFFFF; --ink:#111C2E; --muted:#56637A; --rule:#D9DFE8; --rule-soft:#E7EBF1;
+  --model:#2F4FD6; --model-tint:#E3E8FB; --data:#C98410; --data-tint:#FAEFD8; --risk:#C23B3B; --risk-tint:#F8E3E3;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --body:"Public Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --code:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --col:700px; --wide:1000px; --gutter:clamp(18px,5vw,40px);
+}
+:root[data-theme="dark"]{
+  --ground:#0F1522; --surface:#161E2E; --ink:#E6EBF3; --muted:#97A3B8; --rule:#263146; --rule-soft:#1D2638;
+  --model:#8198FF; --model-tint:#1C2648; --data:#F0B240; --data-tint:#33280F; --risk:#F07A7A; --risk-tint:#3A1C1F;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0F1522; --surface:#161E2E; --ink:#E6EBF3; --muted:#97A3B8; --rule:#263146; --rule-soft:#1D2638;
+    --model:#8198FF; --model-tint:#1C2648; --data:#F0B240; --data-tint:#33280F; --risk:#F07A7A; --risk-tint:#3A1C1F;
+  }
+}
+*,*::before,*::after{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:calc(72px + env(safe-area-inset-top,0px));-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--ground);color:var(--ink);font:400 17px/1.65 var(--body);-webkit-font-smoothing:antialiased}
+a{color:var(--model);text-underline-offset:3px}
+:focus-visible{outline:2px solid var(--model);outline-offset:3px;border-radius:4px}
+img,svg{max-width:100%}
+.col{max-width:var(--col);margin:0 auto;padding-inline:var(--gutter)}
+.wide{max-width:var(--wide);margin:0 auto;padding-inline:var(--gutter)}
+
+/* reading mode switch */
+[data-level="general"] .tech{display:none !important}
+[data-level="technical"] .gen{display:none !important}
+
+/* top bar */
+.bar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--ground) 88%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--rule)}
+.bar-in{max-width:var(--wide);margin:0 auto;padding:10px var(--gutter);display:flex;align-items:center;justify-content:space-between;gap:16px}
+.bar-title{color:var(--ink);text-decoration:none;font:600 15px/1.2 var(--display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.controls{display:flex;align-items:center;gap:10px;flex:none}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:999px;padding:3px;background:var(--surface)}
+.seg button{font:600 13.5px/1 var(--body);border:0;background:none;color:var(--muted);padding:8px 14px;border-radius:999px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--ground)}
+.seg button:hover:not([aria-pressed="true"]){color:var(--ink)}
+.icon-btn{width:36px;height:36px;border-radius:50%;border:1px solid var(--rule);background:var(--surface);color:var(--ink);cursor:pointer;font-size:15px;display:grid;place-items:center}
+
+/* hero */
+.hero{padding:clamp(40px,7vw,80px) 0 12px}
+.kicker{font:600 14px/1.4 var(--body);color:var(--model);margin:0 0 14px}
+h1{font:700 clamp(36px,5.6vw,60px)/1.04 var(--display);letter-spacing:-.025em;margin:0 0 20px;max-width:17ch}
+.lede{font-size:clamp(18px,2vw,21px);line-height:1.5;color:var(--muted);max-width:44ch;margin:0 0 20px}
+.mode-note{display:block;font-size:14px;color:var(--muted);border-left:3px solid var(--model);padding:2px 0 2px 12px;margin:0}
+.hero-fig{margin:32px auto 0}
+.legend{display:flex;flex-wrap:wrap;gap:8px 22px;font-size:14px;color:var(--muted);margin-top:10px}
+.legend span{display:inline-flex;align-items:center;gap:8px}
+.sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+.sw.data{background:var(--data);border-radius:50%}
+.sw.model{background:var(--model)}
+.sw.idle{background:var(--surface);border:1.5px solid var(--rule)}
+
+/* sections */
+section{padding:clamp(48px,7vw,84px) 0 0}
+h2{font:700 clamp(28px,3.6vw,40px)/1.1 var(--display);letter-spacing:-.018em;margin:0 0 16px;max-width:22ch}
+h3{font:650 21px/1.25 var(--display);margin:30px 0 8px}
+p{margin:0 0 16px}
+.big{font-size:clamp(19px,2.1vw,22px);line-height:1.5}
+strong{font-weight:650}
+code{font:400 .86em var(--code);background:var(--model-tint);padding:2px 5px;border-radius:4px}
+
+figure{margin:26px 0 8px}
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:clamp(16px,3vw,28px)}
+figcaption{font-size:14px;color:var(--muted);margin-top:10px}
+
+/* comparison */
+.versus{display:grid;grid-template-columns:1fr;gap:18px}
+@media (min-width:760px){.versus{grid-template-columns:1fr 1fr}}
+.versus h4{font:650 17px/1.3 var(--display);margin:0 0 4px}
+.versus p{font-size:15px;color:var(--muted);margin:0 0 10px}
+.tagline{font-size:13.5px;font-weight:600;display:inline-block;padding:3px 9px;border-radius:999px;margin-bottom:10px}
+.tagline.bad{background:var(--data-tint);color:var(--data)}
+.tagline.good{background:var(--model-tint);color:var(--model)}
+
+/* stepper */
+.stepper{display:grid;grid-template-columns:1fr;gap:20px;align-items:center}
+@media (min-width:820px){.stepper{grid-template-columns:1.1fr 1fr}}
+.steps{list-style:none;margin:0;padding:0;counter-reset:s}
+.steps li{counter-increment:s;padding:12px 14px 12px 50px;border-radius:10px;position:relative;cursor:pointer;color:var(--muted);transition:background .2s,color .2s}
+.steps li::before{content:counter(s);position:absolute;left:12px;top:12px;width:26px;height:26px;border-radius:50%;border:1.5px solid var(--rule);display:grid;place-items:center;font:600 13px/1 var(--body)}
+.steps li.on{background:var(--model-tint);color:var(--ink)}
+.steps li.on::before{background:var(--model);border-color:var(--model);color:#fff}
+.steps b{display:block;color:var(--ink);font-weight:650}
+.step-nav{display:flex;gap:8px;margin-top:12px}
+.btn{font:600 14px/1 var(--body);padding:10px 16px;border-radius:999px;border:1px solid var(--rule);background:var(--surface);color:var(--ink);cursor:pointer}
+.btn:hover{border-color:var(--ink)}
+.btn.primary{background:var(--model);border-color:var(--model);color:#fff}
+
+/* svg diagram vocabulary */
+.dg{display:block;width:100%;height:auto;font-family:var(--body)}
+.dg .node{fill:var(--surface);stroke:var(--rule);stroke-width:1.5}
+.dg .srv{fill:var(--model-tint);stroke:var(--model);stroke-width:1.5}
+.dg .tok{fill:var(--data-tint);stroke:var(--data);stroke-width:1.5}
+.dg .lbl{fill:var(--ink);font-size:13px;font-weight:600}
+.dg .sub{fill:var(--muted);font-size:11.5px}
+.dg .wt{fill:var(--model);font-size:12px;font-weight:700}
+.dg .score{fill:var(--ink);font-size:13px;font-weight:650;font-variant-numeric:tabular-nums}
+.dg .res{fill:var(--model);font-size:14px;font-weight:700}
+.dg .link{stroke:var(--rule);stroke-width:1.5;fill:none}
+.dg .arrow-m{stroke:var(--model);stroke-width:2;fill:none}
+.dg .arrow-d{stroke:var(--data);stroke-width:2;fill:none}
+.dg .exp{fill:var(--surface);stroke:var(--rule);stroke-width:1.5;transition:fill .3s,stroke .3s}
+.dg .exp.on{fill:var(--model-tint);stroke:var(--model);stroke-width:2}
+.dg .exp.off{opacity:.4}
+.dg .route{stroke:var(--rule);stroke-width:1.3;fill:none;transition:stroke .3s,opacity .3s}
+.dg .route.on{stroke:var(--model);stroke-width:2.4}
+.dg .wt{opacity:0;transition:opacity .3s}
+.dg .wt.on{opacity:1}
+.dg .dense{fill:var(--model-tint);stroke:var(--model);stroke-width:2}
+#layer .grp{transition:opacity .35s}
+
+/* challenges */
+.chal{display:grid;grid-template-columns:1fr;gap:26px}
+@media (min-width:760px){.chal{grid-template-columns:1fr 1fr}}
+.chal h4{font:650 18px/1.3 var(--display);margin:0 0 4px}
+.chal p{font-size:15.5px;color:var(--muted);margin:0}
+
+/* interactive: load balance */
+.lb{display:grid;grid-template-columns:1fr;gap:22px;align-items:end}
+@media (min-width:760px){.lb{grid-template-columns:1.3fr 1fr}}
+.bars-wrap{position:relative;height:180px;border-bottom:1px solid var(--rule)}
+.bars{position:absolute;inset:0;display:flex;align-items:flex-end;gap:8px}
+.bars i{flex:1;display:block;background:var(--model);border-radius:4px 4px 0 0;transition:height .15s}
+.bars i.over{background:var(--risk)}
+.cap-line{position:absolute;left:0;right:0;border-top:2px dashed var(--muted)}
+.cap-line span{position:absolute;right:0;top:-22px;font-size:12px;color:var(--muted);background:var(--surface);padding:0 4px}
+.bar-lbls{display:flex;gap:8px;font-size:12px;color:var(--muted);margin-top:6px}
+.bar-lbls span{flex:1;text-align:center}
+.meters{display:grid;gap:14px}
+.meter-row{display:grid;gap:5px}
+.meter-row .top{display:flex;justify-content:space-between;font-size:14px}
+.meter{height:10px;border-radius:5px;background:var(--rule-soft);overflow:hidden}
+.meter span{display:block;height:100%;border-radius:5px;transition:width .15s}
+input[type=range]{width:100%;accent-color:var(--model)}
+.slider-lbl{display:flex;justify-content:space-between;font-size:14px;font-weight:600;margin-bottom:4px}
+
+/* interactive: size */
+.sizer{display:grid;grid-template-columns:1fr;gap:22px}
+@media (min-width:760px){.sizer{grid-template-columns:1fr 1.3fr}}
+.sizer .controls-col{display:grid;gap:16px;align-content:start}
+.ratio{font:700 clamp(30px,4vw,40px)/1 var(--display);color:var(--model);margin:4px 0 2px}
+.ratio-sub{font-size:14px;color:var(--muted)}
+
+.defs{display:grid;grid-template-columns:1fr;gap:0;border-top:1px solid var(--rule);margin-top:18px}
+.defs > div{display:grid;grid-template-columns:1fr;gap:4px 24px;padding:18px 0;border-bottom:1px solid var(--rule)}
+@media (min-width:760px){.defs > div{grid-template-columns:210px 1fr}}
+.defs h4{font:650 17px/1.3 var(--display);margin:0}
+.defs p{margin:0;font-size:15.5px}
+.defs .cost{font-size:14px;color:var(--muted);margin-top:4px}
+
+.callout{border-radius:14px;padding:20px 22px;background:var(--data-tint);border:1px solid color-mix(in srgb,var(--data) 35%,transparent)}
+.callout p{margin:0}
+.callout .big{font-weight:650;color:var(--ink)}
+
+/* decision helper */
+.qs{display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.qs li{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid var(--rule-soft)}
+.qs .seg button{padding:7px 14px}
+.verdict{margin-top:18px;padding:16px 18px;border-radius:12px;background:var(--model-tint);font-weight:600}
+.verdict.no{background:var(--data-tint)}
+
+/* interactive: batch */
+.batch{display:grid;grid-template-columns:1fr;gap:22px;align-items:center}
+@media (min-width:760px){.batch{grid-template-columns:1.3fr 1fr}}
+.ex-grid{display:grid;gap:3px}
+.ex-grid i{display:block;aspect-ratio:1;border-radius:3px;background:var(--surface);border:1.5px solid var(--rule);transition:background .15s,border-color .15s}
+.ex-grid i.on{background:var(--model);border-color:var(--model)}
+.big-num{font:700 clamp(28px,3.6vw,36px)/1 var(--display);color:var(--model)}
+
+/* quiz */
+.quiz{list-style:none;margin:0;padding:0;counter-reset:qz}
+.quiz > li{counter-increment:qz;padding:20px 0;border-bottom:1px solid var(--rule)}
+.quiz > li:first-child{padding-top:0}
+.quiz .qq{font-weight:650;margin:0 0 10px}
+.quiz .qq::before{content:counter(qz) ". ";color:var(--model)}
+.opts{display:flex;flex-wrap:wrap;gap:8px}
+.opt{font:500 15px/1.3 var(--body);text-align:left;padding:10px 14px;border-radius:10px;border:1.5px solid var(--rule);background:var(--surface);color:var(--ink);cursor:pointer}
+.opt:hover:not(:disabled){border-color:var(--ink)}
+.opt:disabled{cursor:default}
+.opt.right{background:var(--model-tint);border-color:var(--model)}
+.opt.wrong{background:var(--risk-tint);border-color:var(--risk)}
+.opt.dim{opacity:.55}
+.explain{display:none;font-size:15px;color:var(--muted);margin:10px 0 0}
+.answered .explain{display:block}
+.explain b{color:var(--ink)}
+.quiz-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:18px}
+.quiz-score{font-weight:650}
+
+/* tables */
+.fw{width:100%;border-collapse:collapse;font-size:15px}
+.fw th,.fw td{text-align:left;padding:11px 12px 11px 0;border-bottom:1px solid var(--rule);vertical-align:top}
+.fw th{font-size:13px;color:var(--muted);font-weight:600}
+.fw td:first-child{font-weight:650;white-space:nowrap}
+.fw td.num,.fw th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fw td.hl{color:var(--model);font-weight:700}
+.tbl-wrap{overflow-x:auto}
+
+/* technical blocks */
+.tech-block{border-left:3px solid var(--model);padding:4px 0 4px 18px;margin:22px 0}
+.katex-display{overflow-x:auto;overflow-y:hidden;padding:4px 0}
+.algo{background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:16px 18px;font:400 14px/1.7 var(--code);overflow-x:auto;white-space:pre}
+.refs{font-size:14.5px;color:var(--muted);padding-left:20px}
+.refs li{margin-bottom:6px}
+
+footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font-size:14px;color:var(--muted)}
+
+@media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="bar-in">
+    <a class="bar-title" href="../index.html">← Blog</a>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Reading level">
+        <button type="button" data-set-level="general" aria-pressed="true">General</button>
+        <button type="button" data-set-level="technical" aria-pressed="false">Technical</button>
+      </div>
+      <button type="button" class="icon-btn" id="theme" aria-label="Switch light or dark theme" title="Light / dark">◐</button>
+    </div>
+  </div>
+</header>
+
+<main>
+<!-- ───────── HERO ───────── -->
+<div class="hero">
+  <div class="col">
+    <p class="kicker">Machine learning · LLMs</p>
+    <h1>Mixture of Experts: huge models that only use a fraction of themselves</h1>
+    <p class="lede gen">Many of today's largest language models aren't one big network. They're many smaller ones, and each word only visits a few of them. Here's how that works, why it's cheaper, and what it changes.</p>
+    <p class="lede tech">Sparse conditional computation in transformers: gating functions, load balancing, capacity, expert parallelism, inference economics and what total-versus-active parameters means for evaluation and regulation.</p>
+    <p class="mode-note gen">You're reading the general version. Switch to <b>Technical</b> at the top for the maths.</p>
+    <p class="mode-note tech">You're reading the technical version. Switch to <b>General</b> at the top for the visual overview.</p>
+  </div>
+  <div class="wide hero-fig">
+    <div class="panel">
+      <svg id="hero" class="dg" viewBox="0 0 900 360" role="img" aria-label="Each token goes to a router, which sends it to two of eight experts. Their outputs are combined into the result. The other six experts stay idle for that token."></svg>
+      <div class="legend">
+        <span><i class="sw data"></i>Token. One piece of text.</span>
+        <span><i class="sw model"></i>Active expert. Runs for this token.</span>
+        <span><i class="sw idle"></i>Idle expert. Stored, but not used.</span>
+      </div>
+      <figcaption class="gen">Illustrative routes. The router learns them during training, and they don't follow topics: there is no "animal expert". Neighbouring words often share an expert, as here.</figcaption>
+      <figcaption class="tech">Illustrative top-2 routing over one sequence. Real routing is learned and correlates more with syntax and position than with topic [6]; consecutive tokens frequently share an expert.</figcaption>
+    </div>
+  </div>
+</div>
+
+<!-- ───────── WHY ───────── -->
+<section id="why">
+  <div class="col">
+    <h2>Why not just make the model bigger?</h2>
+    <p class="big gen">Bigger models are usually better. But in a normal model, every part of the network does work for every single word. Double the size and you double the cost of every answer.</p>
+    <p class="gen">A Mixture of Experts (MoE) model breaks that link. It holds a lot of knowledge in many separate blocks, called experts, but for each word it only switches on the few that are most relevant. You get the capacity of a very large model at roughly the running cost of a much smaller one.</p>
+    <p class="tech">In a dense transformer, forward FLOPs per token scale as \(\approx 2N\) for \(N\) parameters, so capacity and per-token compute are locked together. Conditional computation decouples them: a sparsely activated layer holds \(N_{\text{total}}\) parameters but evaluates only \(N_{\text{active}}\ll N_{\text{total}}\) per token, chosen by a learned, input-dependent gate [1, 2]. Empirically, at fixed training compute, sparse models reach a given loss with fewer FLOPs than dense ones, and the gap grows with expert count up to a point [4, 5]. The price is paid in memory, communication and optimisation stability, not in arithmetic.</p>
+  </div>
+  <div class="wide">
+    <figure class="versus">
+      <div class="panel">
+        <span class="tagline bad">Dense</span>
+        <h4>Every part works on every word</h4>
+        <p>Cost per word grows with the whole model.</p>
+        <svg id="vs-dense" class="dg" viewBox="0 0 420 200" aria-hidden="true"></svg>
+      </div>
+      <div class="panel">
+        <span class="tagline good">Mixture of Experts</span>
+        <h4>Only a few experts work on each word</h4>
+        <p>Cost per word grows with the active experts only.</p>
+        <svg id="vs-moe" class="dg" viewBox="0 0 420 200" aria-hidden="true"></svg>
+      </div>
+    </figure>
+  </div>
+</section>
+
+<!-- ───────── HOW ───────── -->
+<section id="how">
+  <div class="col">
+    <h2>What happens inside one layer</h2>
+    <p class="gen">A language model is a stack of layers. In an MoE model, part of each layer, the part that does most of the "thinking" about each word, is replaced by a set of experts plus a small <strong>router</strong> that decides which experts to use. Click through the steps.</p>
+    <p class="tech">In a transformer block, the MoE sublayer replaces the position-wise feed-forward network (FFN), in every block or every other block; attention stays dense. Each expert \(E_i\) is an ordinary FFN (typically SwiGLU). Step through the routing of one token; the formal description follows.</p>
+  </div>
+  <div class="wide">
+    <figure class="panel stepper">
+      <svg id="layer" class="dg" viewBox="0 0 460 340" data-s="1" aria-label="One token routed through an MoE layer with four experts"></svg>
+      <div>
+        <ol class="steps" id="steps">
+          <li class="on" data-s="1"><b>A token arrives</b><span class="gen">Each piece of text reaches the layer as a list of numbers describing it in context.</span><span class="tech">Hidden state \(x\in\mathbb{R}^d\) enters the MoE sublayer after attention and normalisation.</span></li>
+          <li data-s="2"><b>The router scores every expert</b><span class="gen">A tiny network gives each expert a score: how useful it should be for this token.</span><span class="tech">\(p=\mathrm{softmax}(W_r x)\), with \(W_r\in\mathbb{R}^{N\times d}\). This costs \(Nd\) FLOPs, negligible next to an expert.</span></li>
+          <li data-s="3"><b>Pick the best two</b><span class="gen">Only the top-scoring experts run. The others stay idle for this token.</span><span class="tech">\(\mathcal{T}=\mathrm{TopK}(p,k)\) with \(k=2\); only \(E_i,\ i\in\mathcal{T}\) are evaluated.</span></li>
+          <li data-s="4"><b>Blend the answers</b><span class="gen">The chosen experts' outputs are mixed, weighted by their scores, and passed on to the next layer.</span><span class="tech">\(y=\sum_{i\in\mathcal{T}}\tilde p_i\,E_i(x)\), \(\tilde p_i=p_i/\sum_{j\in\mathcal{T}}p_j\).</span></li>
+        </ol>
+        <div class="step-nav">
+          <button type="button" class="btn" id="prev">Back</button>
+          <button type="button" class="btn primary" id="next">Next step</button>
+        </div>
+      </div>
+    </figure>
+  </div>
+  <div class="col">
+    <p class="gen">This happens independently for every token in every MoE layer, so a single sentence takes many different paths through the model. Nobody tells the router which expert to use: it learns that during training, together with the experts themselves.</p>
+
+    <div class="tech">
+      <h3>Gating</h3>
+      <p>Shazeer et al. [2] introduced the noisy top-\(k\) gate for LSTMs, the form most later work builds on:</p>
+      \[G(x)=\mathrm{softmax}\big(\mathrm{KeepTopK}(H(x),k)\big),\]
+      \[H(x)_i=(W_r x)_i+\varepsilon_i\cdot\mathrm{softplus}\big((W_{\text{noise}}x)_i\big),\]
+      <p>with \(\varepsilon_i\sim\mathcal N(0,1)\) and KeepTopK setting non-selected logits to \(-\infty\). The layer output is \(y=\sum_{i=1}^{N}G(x)_i\,E_i(x)\), and since \(G(x)\) is \(k\)-sparse only \(k\) experts are computed. The router receives gradient only through the selected gate values, so the selection itself is non-differentiable; it is learned indirectly through which experts' weights help the loss. Switch Transformer [4] showed \(k=1\) works and simplifies routing; GShard [3] and Mixtral [6] use \(k=2\); DeepSeek-V3 [8] selects 8 of 256 fine-grained experts with sigmoid affinities.</p>
+      <div class="algo">MoE_layer(X ∈ ℝ^{T×d}, W_r, {E_1..E_N}, k)
+  P ← softmax(X W_rᵀ)                     # T × N router probs
+  for each token t:
+      S_t ← indices of top-k entries of P[t]
+      g_t ← P[t, S_t] / Σ P[t, S_t]       # renormalise
+  for each expert i in parallel:
+      B_i ← { t : i ∈ S_t }               # dispatch (all-to-all)
+      Y_i ← E_i(X[B_i])
+  for each token t:
+      y_t ← Σ_{i∈S_t} g_t[i] · Y_i[t]      # combine (all-to-all)
+  return Y</div>
+      <h3>Fine-grained and shared experts</h3>
+      <p>DeepSeekMoE [7] splits each expert into \(m\) smaller ones and activates \(mk\) of them, keeping compute constant while increasing the number of possible combinations from \(\binom{N}{k}\) to \(\binom{mN}{mk}\). It also adds \(K_s\) <em>shared</em> experts that every token passes through, so common knowledge isn't duplicated across routed experts:</p>
+      \[h=x+\sum_{i=1}^{K_s}E^{\text{sh}}_i(x)+\sum_{i\in\mathcal{T}}g_i\,E_i(x).\]
+    </div>
+  </div>
+</section>
+
+<!-- ───────── SIZE ───────── -->
+<section id="size">
+  <div class="col">
+    <h2>One model, two sizes</h2>
+    <p class="gen">This is the key idea to remember. An MoE model has a <strong>total size</strong>, everything it stores, and an <strong>active size</strong>, the part that actually runs for each word. Try changing the number of experts and how many each word uses.</p>
+    <p class="tech">With \(N_s\) always-on parameters (embeddings, attention, router, shared experts) and per-expert parameters \(N_e\) summed over MoE layers, \(N_{\text{total}}=N_s+N\cdot N_e\) and \(N_{\text{active}}=N_s+k\cdot N_e\). Memory follows the first; per-token FLOPs follow the second.</p>
+  </div>
+  <div class="wide">
+    <figure class="panel sizer">
+      <div class="controls-col">
+        <div>
+          <div class="slider-lbl"><span>Number of experts</span><span id="n-out"></span></div>
+          <input type="range" id="n-exp" min="2" max="64" step="1" value="8" aria-label="Number of experts">
+        </div>
+        <div>
+          <div class="slider-lbl"><span>Experts used per word</span><span id="k-out"></span></div>
+          <input type="range" id="k-exp" min="1" max="8" step="1" value="2" aria-label="Experts used per word">
+        </div>
+        <div>
+          <div class="ratio" id="ratio"></div>
+          <div class="ratio-sub">of the model does work for each word</div>
+        </div>
+      </div>
+      <div class="meters">
+        <div class="meter-row"><div class="top"><span>Total size: must fit in memory</span><b id="tot-out"></b></div><div class="meter"><span id="tot-bar" style="background:var(--data)"></span></div></div>
+        <div class="meter-row"><div class="top"><span>Active size: sets the cost per word</span><b id="act-out"></b></div><div class="meter"><span id="act-bar" style="background:var(--model)"></span></div></div>
+        <svg id="grid" class="dg" viewBox="0 0 520 50" aria-hidden="true" style="margin-top:6px"></svg>
+      </div>
+    </figure>
+    <figcaption class="gen" style="max-width:var(--col)">Illustrative. Assumes 5 billion shared parameters plus 5 billion per expert. Real models make different choices; see the table below.</figcaption>
+    <figcaption class="tech" style="max-width:var(--col)">Illustrative: \(N_s=5\)B, \(N_e=5\)B. Router parameters are ignored.</figcaption>
+  </div>
+  <div class="col">
+    <h3>What real models look like</h3>
+    <div class="tbl-wrap">
+      <table class="fw">
+        <thead><tr><th>Model</th><th>Year</th><th>Experts per layer (used)</th><th class="num">Total</th><th class="num">Active</th></tr></thead>
+        <tbody>
+          <tr><td>Mixtral 8x7B</td><td>2023</td><td>8 (2)</td><td class="num">46.7B</td><td class="num hl">12.9B</td></tr>
+          <tr><td>Mixtral 8x22B</td><td>2024</td><td>8 (2)</td><td class="num">141B</td><td class="num hl">39B</td></tr>
+          <tr><td>DeepSeek-V3</td><td>2024</td><td>256 + 1 shared (8 + 1)</td><td class="num">671B</td><td class="num hl">37B</td></tr>
+          <tr><td>Qwen3-30B-A3B</td><td>2025</td><td>128 (8)</td><td class="num">30.5B</td><td class="num hl">3.3B</td></tr>
+          <tr><td>Qwen3-235B-A22B</td><td>2025</td><td>128 (8)</td><td class="num">235B</td><td class="num hl">22B</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:14px;color:var(--muted);margin-top:10px">As reported by each model's developers. Note that "8x7B" doesn't mean 56B: attention and embeddings are shared, only the feed-forward part is replicated.</p>
+  </div>
+</section>
+
+<!-- ───────── SPECIALISE ───────── -->
+<section id="specialise">
+  <div class="col">
+    <h2>Are the experts really experts?</h2>
+    <div class="callout">
+      <p class="big">Not in the way the name suggests.</p>
+      <p class="gen" style="margin-top:8px">There's no "maths expert" or "law expert". Experts emerge from training, and what they specialise in is rarely something a person would name.</p>
+      <p class="tech" style="margin-top:8px">Expert assignment is an emergent property of joint optimisation, with no supervision on semantics.</p>
+    </div>
+    <p class="gen" style="margin-top:22px">When Mistral AI studied which experts their Mixtral model picked, they found little difference between topics: maths papers, biology articles and philosophy texts used the experts in similar proportions. What they did find was a pattern by <em>form</em>: in Python code, for example, indentation and the word <code>self</code> tended to go to the same expert, and neighbouring words often took the same route [6].</p>
+    <p class="gen">That's worth knowing because "which expert handled this?" sounds like an explanation of the model's answer. It isn't.</p>
+    <div class="tech" style="margin-top:22px">
+      <p>Jiang et al. [6] measured expert selection across subsets of The Pile (ArXiv, PubMed, PhilPapers, GitHub, …) at layers 0, 15 and 31 of Mixtral and found no clear domain specialisation, except a mildly different distribution for DM Mathematics, likely due to its synthetic nature. Routing was instead correlated with syntax and position: consecutive tokens were assigned the same expert far more often than chance in deeper layers, and code tokens such as indentation and <code>self</code> concentrated on particular experts. Fine-grained and shared-expert designs [7] are motivated precisely by the claim that coarse experts end up redundant; whether this yields more interpretable specialisation is still an open question, and routing traces should not be treated as attributions.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── HARD ───────── -->
+<section id="hard">
+  <div class="col">
+    <h2>What makes it hard</h2>
+    <p class="gen">MoE saves computation, but it isn't free. Four problems come with it.</p>
+    <p class="tech">The arithmetic savings are offset by four engineering problems: load imbalance, memory footprint, communication, and optimisation instability.</p>
+  </div>
+  <div class="wide">
+    <div class="panel chal">
+      <div>
+        <h4>Some experts get all the work</h4>
+        <p class="gen">Left alone, the router tends to favour a few experts. Those get better, so they get picked even more, while the others are wasted. Training has to actively push for balance.</p>
+        <p class="tech">Routing collapse: a positive feedback loop between router preference and expert quality. Mitigated with auxiliary balance losses, bias-based balancing, or balanced assignment by construction (see below).</p>
+      </div>
+      <div>
+        <h4>Cheap to run, not cheap to hold</h4>
+        <p class="gen">Each word only uses a few experts, but the next word might need any of the others. So the whole model still has to sit in memory, and memory is often the most expensive part of running it.</p>
+        <p class="tech">Weights for all \(N\) experts must be resident (or paged in at high cost). Per-token FLOPs scale with \(N_{\text{active}}\), but HBM capacity, and hence GPU count, scales with \(N_{\text{total}}\).</p>
+      </div>
+      <div>
+        <h4>Words have to travel between machines</h4>
+        <p class="gen">Big MoE models are spread across many chips, with different experts on different chips. Every layer, each word has to be sent to wherever its experts live and back again.</p>
+        <p class="tech">Expert parallelism shards experts across devices; each MoE layer needs two all-to-all collectives (dispatch and combine) whose cost grows with tokens × \(k\) × \(d\) and with interconnect topology.</p>
+      </div>
+      <div>
+        <h4>Training is touchier</h4>
+        <p class="gen">MoE models have historically been less stable to train and easier to over-fit when adapted with small amounts of data. That has improved a lot, but it still needs care.</p>
+        <p class="tech">Router logits can grow and cause loss spikes, especially in low precision; fine-tuning on small datasets overfits more readily than dense models of matched quality [5], though instruction tuning helps MoE disproportionately [13].</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <h3>See the balancing problem</h3>
+    <p class="gen">Each bar is one expert and its share of the words. The dashed line is how much work each expert can take on. Without balancing, the busiest experts overflow and the extra words are dropped or delayed. Drag the slider to add balancing.</p>
+    <p class="tech">Bars show the dispatch fraction \(f_i\) per expert; the dashed line is the per-expert capacity at capacity factor 1.25. Tokens over capacity are dropped (passed through the residual connection only). Slide to interpolate from a collapsed to a uniform router.</p>
+  </div>
+  <div class="wide">
+    <figure class="panel lb">
+      <div>
+        <div class="bars-wrap"><div class="bars" id="bars"></div><div class="cap-line" id="cap-line"><span>capacity</span></div></div>
+        <div class="bar-lbls" id="bar-lbls"></div>
+      </div>
+      <div class="meters">
+        <div>
+          <div class="slider-lbl"><span>Balancing</span><span id="bal-out"></span></div>
+          <input type="range" id="bal" min="0" max="1" step="0.02" value="0" aria-label="Balancing strength">
+        </div>
+        <div class="meter-row"><div class="top"><span>Busiest expert's share</span><b id="max-out"></b></div><div class="meter"><span id="max-bar" style="background:var(--data)"></span></div></div>
+        <div class="meter-row"><div class="top"><span>Words dropped</span><b id="drop-out"></b></div><div class="meter"><span id="drop-bar" style="background:var(--risk)"></span></div></div>
+      </div>
+    </figure>
+    <figcaption>Illustrative distribution over eight experts, not measured from a real model.</figcaption>
+  </div>
+
+  <div class="col">
+    <h3>Serving many users at once</h3>
+    <p class="gen">Here's a less obvious catch. With one user, the model only needs the few experts that user's word picks, so it answers fast. But servers handle many users together, and each word picks its own experts. Drag the slider to add users: before long, almost every expert is in use. The saving in calculation stays. The saving in data moved from memory mostly disappears.</p>
+    <p class="tech">Each cell is one expert in a single MoE layer; lit cells are experts selected by at least one of \(B\) concurrent tokens in one decode step (uniform random routing). The readout is the expectation \(N\big(1-(1-k/N)^{B}\big)\) derived below.</p>
+  </div>
+  <div class="wide">
+    <figure class="panel batch">
+      <div><div class="ex-grid" id="ex-grid"></div></div>
+      <div class="meters">
+        <div class="seg" role="group" aria-label="Model layout" id="preset">
+          <button type="button" data-n="8" data-k="2" aria-pressed="true">8 experts, top 2</button>
+          <button type="button" data-n="256" data-k="8" aria-pressed="false">256 experts, top 8</button>
+        </div>
+        <div>
+          <div class="slider-lbl"><span>Words processed together</span><span id="b-out"></span></div>
+          <input type="range" id="b-size" min="1" max="128" step="1" value="1" aria-label="Words processed together (batch size)">
+        </div>
+        <div>
+          <div class="big-num" id="used-out"></div>
+          <div class="ratio-sub">of the experts must be read from memory in this layer</div>
+        </div>
+      </div>
+    </figure>
+    <figcaption>Illustrative: assumes each word picks experts at random. Layouts like Mixtral (8, top 2) and DeepSeek-V3 (256, top 8); real routing is not uniform.</figcaption>
+  </div>
+
+  <div class="col tech">
+    <h3>Balancing, capacity and stability</h3>
+    <p><strong>Auxiliary loss.</strong> Switch Transformer [4] adds, per MoE layer over a batch of \(T\) tokens,</p>
+    \[\mathcal{L}_{\text{aux}}=\alpha\,N\sum_{i=1}^{N}f_i\,P_i,\]
+    \[f_i=\frac1T\sum_{t}\mathbb{1}[\arg\max p_t=i],\qquad P_i=\frac1T\sum_t p_{t,i},\]
+    <p>which is minimised under uniform routing; \(f\) is non-differentiable, so the gradient flows through \(P\). Typical \(\alpha=10^{-2}\). Too large an \(\alpha\) trades model quality for balance.</p>
+    <p><strong>Capacity.</strong> For static shapes each expert processes at most \(C=\mathrm{cf}\cdot kT/N\) tokens; overflow tokens are dropped and carried by the residual stream. MegaBlocks [11] avoids dropping with block-sparse kernels that handle variable expert batch sizes.</p>
+    <p><strong>Auxiliary-loss-free balancing.</strong> DeepSeek-V3 [8, 9] adds a per-expert bias \(b_i\) to the affinity used <em>only for selection</em> (not for the gate value), and after each step nudges \(b_i\leftarrow b_i-\gamma\,\mathrm{sign}(f_i-\bar f)\). This balances load without a gradient term competing with the language-modelling loss; a very small sequence-level auxiliary loss is kept as a safeguard.</p>
+    <p><strong>Router z-loss.</strong> ST-MoE [5] penalises large router logits, \(\mathcal{L}_z=\frac1T\sum_t\big(\log\sum_i e^{z_{t,i}}\big)^2\), which removes most training instabilities from round-off in the router softmax.</p>
+    <p><strong>Balanced by construction.</strong> Expert-choice routing [10] lets each expert pick its top-\(C\) tokens, giving perfect balance and a variable number of experts per token, but it peeks at other tokens in the batch, which complicates autoregressive decoding and creates a cross-request side channel [17]. BASE layers [12] solve a linear assignment problem; hash layers route by a fixed hash of the token id. Soft MoE [14] replaces discrete assignment with learned weighted mixtures of tokens, fully differentiable but less natural for causal decoders.</p>
+
+    <h3>Inference economics</h3>
+    <p>Decoding at small batch size is memory-bandwidth bound: latency tracks bytes read per step, which tracks \(N_{\text{active}}\), so an MoE decodes much faster than a dense model of the same total size. At batch size \(B\), assuming roughly uniform independent routing, the expected number of distinct experts touched per layer is</p>
+    \[\mathbb{E}[\#\text{experts}]=N\Big(1-\big(1-\tfrac{k}{N}\big)^{B}\Big),\]
+    <p>which approaches \(N\) quickly (with \(N=8,k=2\), already \(\approx 7.2\) at \(B=8\); see the figure above). So at high throughput the weight-loading advantage fades and the win is in FLOPs, while memory remains set by \(N_{\text{total}}\). This is why MoE favours large, batched, expert-parallel deployments and is less attractive on a single memory-constrained device, where quantisation or expert offloading is required.</p>
+  </div>
+</section>
+
+<!-- ───────── GOVERNANCE ───────── -->
+<section id="governance">
+  <div class="col">
+    <h2>Why it matters beyond the lab</h2>
+    <p class="gen">If you procure, deploy or govern AI rather than build it, MoE still changes a few things you should ask about.</p>
+    <p class="tech">For model risk, procurement and compliance, the total/active split changes how model scale, cost and transparency claims should be read.</p>
+    <div class="defs">
+      <div>
+        <h4>"How big is it?" has two answers</h4>
+        <div>
+          <p class="gen">Ask for both total and active size. A model described as "47 billion parameters" may run like a 13-billion one but need the hardware of a 47-billion one. Comparing an MoE with a normal model on one number is misleading.</p>
+          <p class="tech">Benchmarks normalised by parameter count should state which count. Quality tracks a mix of both, per-token cost tracks \(N_{\text{active}}\), and serving footprint tracks \(N_{\text{total}}\) at the chosen precision.</p>
+          <p class="cost">Affects: model comparison, vendor claims, cost estimates.</p>
+        </div>
+      </div>
+      <div>
+        <h4>Regulation counts compute, not parameters</h4>
+        <div>
+          <p class="gen">The EU AI Act treats general-purpose AI models as potentially carrying systemic risk based on the amount of computation used to train them, not on how many parameters they have. Because MoE models use less computation per word, they can be much larger in parameters for the same training budget.</p>
+          <p class="tech">Article 51 of the AI Act presumes systemic risk for GPAI models with cumulative training compute above \(10^{25}\) FLOPs [15]. With \(C\approx6\,N_{\text{active}}\,D\) for \(D\) training tokens, an MoE can carry several times the parameters of a dense model at the same \(C\). Parameter count is a poor proxy for regulatory scale; ask providers for the compute estimate.</p>
+          <p class="cost">Affects: GPAI classification, technical documentation requests.</p>
+        </div>
+      </div>
+      <div>
+        <h4>Self-hosting needs room for every expert</h4>
+        <div>
+          <p class="gen">When data has to stay in-house or in the EU, teams often run open models on their own hardware. With MoE, the hardware bill is set by the total size, even though most of it sits idle for any given word.</p>
+          <p class="tech">On-premise or sovereign-cloud deployments for data residency must size GPU memory for \(N_{\text{total}}\) plus KV cache. Quantisation (8- or 4-bit) and expert offloading trade latency or quality for footprint, and both should be re-evaluated on the task, not assumed neutral.</p>
+          <p class="cost">Affects: GDPR data residency, infrastructure budget.</p>
+        </div>
+      </div>
+      <div>
+        <h4>Routing is visible, but it isn't an explanation</h4>
+        <div>
+          <p class="gen">You can log which experts handled each word. That's useful for monitoring and debugging, but since experts aren't topic specialists, it doesn't tell you why the model said what it said.</p>
+          <p class="tech">Router traces are cheap, discrete telemetry, useful for drift and load monitoring. They are not feature attributions; treat them like any other internal activation when building explainability evidence.</p>
+          <p class="cost">Affects: explainability claims, monitoring design.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── PRIVACY ───────── -->
+<section id="privacy">
+  <div class="col">
+    <h2>MoE and privacy</h2>
+    <p class="gen">MoE isn't a privacy technique. But it brings two privacy issues that normal models don't have, and it fits naturally with federated learning.</p>
+    <p class="tech">Sparse routing introduces dependencies between requests and a new class of input-derived data. It is also a natural way to parameterise personalised federated learning.</p>
+    <div class="defs">
+      <div>
+        <h4>Who shares your batch can matter</h4>
+        <div>
+          <p class="gen">Servers process many people's requests together, and each expert can only take so many words at once. With some routing designs, whether your words get processed depends on what others in the same batch sent. Researchers showed that an attacker whose requests land in the same batch as yours can use this to rebuild your prompt [17]. It's a proof of concept under narrow conditions, not an attack on today's chatbots. Still, normal models don't have this weakness at all.</p>
+          <p class="tech">Yona et al. [17] show that under Expert-Choice routing with capacity limits, an adversary sharing a batch with a victim can recover the victim's prompt by observing which of its own tokens are dropped. The demonstration used a two-layer Mixtral variant and relied on the tie-breaking of <code>torch.topk</code>, with \(\mathcal{O}(VM^2)\) queries, about 100 per token in their setup. Mitigations include per-request capacity isolation, token-choice routing with dropless kernels [11] and randomised tie-breaking. In multi-tenant serving, treat batch composition as a confidentiality boundary.</p>
+          <p class="cost">Affects: shared hosting, vendor due diligence.</p>
+        </div>
+      </div>
+      <div>
+        <h4>Routing logs are personal data too</h4>
+        <div>
+          <p class="gen">The record of which experts handled each word is calculated from what the user typed. If you keep it for monitoring, under GDPR treat it like the prompts themselves: a clear purpose, limited retention and controlled access.</p>
+          <p class="tech">Router traces are a deterministic function of the input. Linked to request or user identifiers they are pseudonymous data in GDPR scope (Recital 26), not anonymous telemetry. Aggregate to per-expert load statistics before retention where monitoring allows.</p>
+          <p class="cost">Affects: logging design, records of processing, retention policy.</p>
+        </div>
+      </div>
+      <div>
+        <h4>A natural fit for federated learning</h4>
+        <div>
+          <p class="gen">In <a href="../federated-learning/index.html">federated learning</a>, every participant's data is different, so one shared model fits nobody perfectly. A mixture of experts helps. Each participant combines a shared expert, trained together, with a private one that never leaves their side, and a router learns how much to trust each.</p>
+          <p class="tech">Peterson et al. [18] gate between a differentially private federated general model and a per-user private domain expert, with the largest gains when DP is applied to the shared model. FedMix [19] trains an ensemble and selects a user-specific subset of members. Clients that train only the experts they use also cut uplink and on-device memory. Routing statistics reveal a client's data distribution, so they need the same protection as model updates (see <a href="../federated-learning/index.html">federated learning</a>).</p>
+          <p class="cost">Affects: personalisation, communication cost.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── WHEN ───────── -->
+<section id="when">
+  <div class="col">
+    <h2>Should you pick an MoE model?</h2>
+    <p class="gen">Most teams won't build an MoE model, but many will choose between MoE and normal models. Answer four questions for a quick read.</p>
+    <p class="tech">A quick screen for model selection, assuming you are deploying rather than pre-training.</p>
+    <div class="panel" style="margin-top:18px">
+      <ul class="qs" id="qs">
+        <li data-q="0"><span>Do you need the quality of a large model?</span><span class="seg"><button type="button" data-a="1" aria-pressed="false">Yes</button><button type="button" data-a="0" aria-pressed="false">No</button></span></li>
+        <li data-q="1"><span>Can your hardware hold the whole model in memory?</span><span class="seg"><button type="button" data-a="1" aria-pressed="false">Yes</button><button type="button" data-a="0" aria-pressed="false">No</button></span></li>
+        <li data-q="2"><span>Is cost or speed per answer a key constraint?</span><span class="seg"><button type="button" data-a="1" aria-pressed="false">Yes</button><button type="button" data-a="0" aria-pressed="false">No</button></span></li>
+        <li data-q="3"><span>Will you fine-tune it on a small, narrow dataset?</span><span class="seg"><button type="button" data-a="1" aria-pressed="false">Yes</button><button type="button" data-a="0" aria-pressed="false">No</button></span></li>
+      </ul>
+      <div class="verdict" id="verdict" aria-live="polite">Answer the four questions to see a suggestion.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── QUIZ ───────── -->
+<section id="quiz">
+  <div class="col">
+    <h2>Check yourself</h2>
+    <p>Four quick questions. Pick an answer to see why.</p>
+    <div class="panel">
+      <ol class="quiz" id="quiz">
+        <li>
+          <p class="qq">Mixtral 8x7B has about how many parameters in total?</p>
+          <div class="opts"><button type="button" class="opt">56 billion</button><button type="button" class="opt" data-ok>46.7 billion</button><button type="button" class="opt">12.9 billion</button></div>
+          <p class="explain"><b>46.7 billion.</b> Only the feed-forward part is copied eight times; attention and embeddings are shared, so it isn't 8 × 7. And 12.9 billion is the <em>active</em> size, the part used for each word.</p>
+        </li>
+        <li>
+          <p class="qq">What mostly decides how much hardware you need to run an MoE model?</p>
+          <div class="opts"><button type="button" class="opt" data-ok>Its total size</button><button type="button" class="opt">Its active size</button></div>
+          <p class="explain"><b>Its total size.</b> Any expert might be needed for the next word, so all of them must sit in memory. The active size sets the cost and speed of each word, not the memory.</p>
+        </li>
+        <li>
+          <p class="qq">A user asks a chemistry question. Where does the router send it?</p>
+          <div class="opts"><button type="button" class="opt">To the chemistry expert</button><button type="button" class="opt" data-ok>Each word to whichever experts score best, mostly not by topic</button></div>
+          <p class="explain"><b>Word by word, not by topic.</b> Routing happens per word and per layer, and studies of Mixtral found little topic specialisation. Experts are not human-style specialists.</p>
+        </li>
+        <li>
+          <p class="qq">Under the EU AI Act, what triggers the presumption that a general-purpose model carries systemic risk?</p>
+          <div class="opts"><button type="button" class="opt">Its number of parameters</button><button type="button" class="opt" data-ok>The computation used to train it</button><button type="button" class="opt">Its number of experts</button></div>
+          <p class="explain"><b>Training compute</b>, above 10<sup>25</sup> operations (Article 51). MoE models use less computation per word, so they can have far more parameters than a normal model for the same training budget.</p>
+        </li>
+      </ol>
+      <div class="quiz-foot">
+        <span class="quiz-score" id="quiz-score" aria-live="polite">0 of 4 answered</span>
+        <button type="button" class="btn" id="quiz-reset">Start again</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── CLOSE ───────── -->
+<section id="close">
+  <div class="col">
+    <h2>The short version</h2>
+    <p class="gen">Mixture of Experts is the reason some of the largest open models can be run at all. It trades memory and engineering complexity for a large saving in computation per word. It doesn't make models smarter by itself, and its experts aren't specialists in any human sense, but it changes what "model size" means. Ask for two numbers, not one.</p>
+    <p class="tech">MoE decouples capacity from per-token compute at the cost of memory, communication and routing complexity. It is now the default architecture for frontier-scale open-weight LLMs. For evaluation and governance, report \(N_{\text{total}}\), \(N_{\text{active}}\) and training compute separately.</p>
+
+    <div class="tech">
+      <h3>Open problems</h3>
+      <p>Interpretability of expert specialisation; routing robustness under distribution shift; efficient fine-tuning and continual learning without router drift; expert pruning and merging for deployment; upcycling dense checkpoints into MoE [16]; and scaling laws that account jointly for total parameters, active parameters and granularity.</p>
+    </div>
+    <div>
+      <h3>References</h3>
+      <ol class="refs">
+        <li>Jacobs, Jordan, Nowlan, Hinton. Adaptive Mixtures of Local Experts. Neural Computation, 1991.</li>
+        <li>Shazeer et al. Outrageously Large Neural Networks: The Sparsely-Gated Mixture-of-Experts Layer. ICLR 2017.</li>
+        <li>Lepikhin et al. GShard: Scaling Giant Models with Conditional Computation and Automatic Sharding. ICLR 2021.</li>
+        <li>Fedus, Zoph, Shazeer. Switch Transformers: Scaling to Trillion Parameter Models with Simple and Efficient Sparsity. JMLR, 2022.</li>
+        <li>Zoph et al. ST-MoE: Designing Stable and Transferable Sparse Expert Models. arXiv:2202.08906, 2022.</li>
+        <li>Jiang et al. Mixtral of Experts. arXiv:2401.04088, 2024.</li>
+        <li>Dai et al. DeepSeekMoE: Towards Ultimate Expert Specialization in Mixture-of-Experts Language Models. ACL 2024.</li>
+        <li>DeepSeek-AI. DeepSeek-V3 Technical Report. arXiv:2412.19437, 2024.</li>
+        <li>Wang et al. Auxiliary-Loss-Free Load Balancing Strategy for Mixture-of-Experts. arXiv:2408.15664, 2024.</li>
+        <li>Zhou et al. Mixture-of-Experts with Expert Choice Routing. NeurIPS 2022.</li>
+        <li>Gale, Narayanan, Young, Zaharia. MegaBlocks: Efficient Sparse Training with Mixture-of-Experts. MLSys 2023.</li>
+        <li>Lewis et al. BASE Layers: Simplifying Training of Large, Sparse Models. ICML 2021.</li>
+        <li>Shen et al. Mixture-of-Experts Meets Instruction Tuning. ICLR 2024.</li>
+        <li>Puigcerver et al. From Sparse to Soft Mixtures of Experts. ICLR 2024.</li>
+        <li>Regulation (EU) 2024/1689 (Artificial Intelligence Act), Article 51.</li>
+        <li>Komatsuzaki et al. Sparse Upcycling: Training Mixture-of-Experts from Dense Checkpoints. ICLR 2023.</li>
+        <li>Yona, Shumailov, Hayes, Carlini. Stealing User Prompts from Mixture of Experts. arXiv:2410.22884, 2024.</li>
+        <li>Peterson, Kanani, Marathe. Private Federated Learning with Domain Adaptation. arXiv:1912.06733, 2019.</li>
+        <li>Reisser, Louizos, Gavves, Welling. Federated Mixture of Experts. arXiv:2107.06724, 2021.</li>
+      </ol>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer><div class="col">Mixture of Experts: huge models that only use a fraction of themselves</div></footer>
+
+<script>
+(function(){
+"use strict";
+var root=document.documentElement, NS="http://www.w3.org/2000/svg";
+var reduce=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+function el(tag,attrs,parent){var e=document.createElementNS(NS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e;}
+function txt(parent,x,y,s,cls,anchor){var t=el("text",{x:x,y:y,"class":cls||"lbl","text-anchor":anchor||"middle"},parent);t.textContent=s;return t;}
+function defs(svg){var d=el("defs",{},svg);
+  [["m","var(--model)"],["d","var(--data)"],["g","var(--rule)"]].forEach(function(p){
+    var m=el("marker",{id:svg.id+"-a"+p[0],viewBox:"0 0 10 10",refX:"8",refY:"5",markerWidth:"7",markerHeight:"7",orient:"auto-start-reverse"},d);
+    el("path",{d:"M0,0L10,5L0,10z",fill:p[1]},m);});}
+function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function tokChip(g,x,y,w,label){el("rect",{x:x-w/2,y:y-20,width:w,height:40,rx:20,"class":"tok"},g);return txt(g,x,y+5,label,"lbl");}
+
+/* hero: router lighting two of eight experts */
+(function(){
+  var svg=document.getElementById("hero"); defs(svg);
+  var g=el("g",{},svg), N=8, ex=480, ew=150, eh=30, rx=300, ry=180, sx=730;
+  var ys=[];for(var i=0;i<N;i++) ys.push(37+i*41);
+  var routes=[],outs=[],boxes=[],wts=[];
+  for(i=0;i<N;i++){
+    routes.push(el("path",{d:"M360,"+ry+" C420,"+ry+" 420,"+ys[i]+" "+ex+","+ys[i],"class":"route"},g));
+    outs.push(el("path",{d:"M"+(ex+ew)+","+ys[i]+" C680,"+ys[i]+" 680,"+ry+" "+(sx-26)+","+ry,"class":"route"},g));
+  }
+  el("line",{x1:150,y1:ry,x2:236,y2:ry,"class":"arrow-d","marker-end":"url(#hero-ad)"},g);
+  var word=tokChip(g,95,ry,110,"The");
+  txt(g,95,ry+40,"token","sub");
+  var seq=[["The",2,6,.58],["cat",2,4,.55],["sat",4,7,.61],["on",0,4,.52],["the",0,5,.66],["mat",5,1,.57],[".",1,3,.60]],n=0;
+  var sent=el("text",{x:24,y:ry-78,"class":"sub","text-anchor":"start"},g),spans=[];
+  seq.forEach(function(s,i){var t=el("tspan",{},sent);t.textContent=(i?" ":"")+s[0];spans.push(t);});
+  el("rect",{x:rx-60,y:ry-42,width:120,height:84,rx:14,"class":"srv"},g);
+  txt(g,rx,ry-2,"Router","lbl"); txt(g,rx,ry+18,"picks top 2","sub");
+  for(i=0;i<N;i++){
+    boxes.push(el("rect",{x:ex,y:ys[i]-eh/2,width:ew,height:eh,rx:8,"class":"exp"},g));
+    txt(g,ex+14,ys[i]+5,"Expert "+(i+1),"lbl","start");
+    wts.push(txt(g,ex+ew-12,ys[i]+5,"","wt","end"));
+  }
+  el("circle",{cx:sx,cy:ry,r:26,"class":"srv"},g); txt(g,sx,ry+6,"Σ","lbl").setAttribute("font-size","18");
+  el("line",{x1:sx+28,y1:ry,x2:800,y2:ry,"class":"arrow-m","marker-end":"url(#hero-am)"},g);
+  txt(g,845,ry+5,"output","lbl"); txt(g,845,ry+24,"to next layer","sub");
+  function show(s){
+    word.textContent=s[0];
+    spans.forEach(function(t,i){t.setAttribute("fill",seq[i]===s?"var(--data)":"var(--muted)");t.setAttribute("font-weight",seq[i]===s?"700":"400");});
+    for(var j=0;j<N;j++){var on=j===s[1]||j===s[2];
+      boxes[j].classList.toggle("on",on);routes[j].classList.toggle("on",on);outs[j].classList.toggle("on",on);
+      wts[j].classList.toggle("on",on);wts[j].textContent=j===s[1]?s[3].toFixed(2):j===s[2]?(1-s[3]).toFixed(2):"";}
+  }
+  show(seq[0]);
+  if(!reduce) setInterval(function(){n=(n+1)%seq.length;show(seq[n]);},1800);
+})();
+
+/* dense vs moe */
+(function(){
+  var s=document.getElementById("vs-dense"),g=el("g",{},s);defs(s);
+  tokChip(g,50,100,70,"word");
+  el("line",{x1:86,y1:100,x2:126,y2:100,"class":"arrow-d","marker-end":"url(#vs-dense-ad)"},g);
+  el("rect",{x:132,y:24,width:200,height:152,rx:14,"class":"dense"},g);
+  for(var r=0;r<5;r++)for(var c=0;c<7;c++)el("rect",{x:148+c*25,y:38+r*26,width:18,height:18,rx:4,fill:"var(--model)",opacity:.85},g);
+  el("line",{x1:336,y1:100,x2:376,y2:100,"class":"arrow-m","marker-end":"url(#vs-dense-am)"},g);
+  txt(g,398,105,"out","lbl");
+
+  var t=document.getElementById("vs-moe"),h=el("g",{},t);defs(t);
+  tokChip(h,50,100,70,"word");
+  el("line",{x1:86,y1:100,x2:112,y2:100,"class":"arrow-d","marker-end":"url(#vs-moe-ad)"},h);
+  el("rect",{x:116,y:78,width:64,height:44,rx:10,"class":"srv"},h);txt(h,148,104,"Router","sub");
+  var on=[1,4];
+  for(var i=0;i<6;i++){var y=18+i*29,a=on.indexOf(i)>-1;
+    el("path",{d:"M180,100 C205,100 205,"+(y+11)+" 228,"+(y+11),"class":a?"route on":"route"},h);
+    el("rect",{x:230,y:y,width:96,height:22,rx:6,"class":a?"exp on":"exp"},h);
+    for(var c2=0;c2<4;c2++)el("rect",{x:240+c2*20,y:y+5,width:12,height:12,rx:3,fill:a?"var(--model)":"var(--rule)",opacity:a?.85:1},h);
+  }
+  el("line",{x1:336,y1:100,x2:376,y2:100,"class":"arrow-m","marker-end":"url(#vs-moe-am)"},h);
+  txt(h,398,105,"out","lbl");
+})();
+
+/* layer stepper */
+(function(){
+  var svg=document.getElementById("layer"); defs(svg);
+  var cy=170, ys=[60,133,207,280], ex=250, ew=110, sx=420;
+  var probs=[.41,.07,.38,.14], pick=[0,2];
+  var base=el("g",{},svg), g1=el("g",{"class":"grp"},svg), g2=el("g",{"class":"grp"},svg), g3=el("g",{"class":"grp"},svg), g4=el("g",{"class":"grp"},svg);
+  var routes=[],boxes=[],outs=[];
+  ys.forEach(function(y,i){
+    routes.push(el("path",{d:"M178,"+cy+" C210,"+cy+" 210,"+y+" "+ex+","+y,"class":"route"},base));
+    outs.push(el("path",{d:"M"+(ex+ew)+","+y+" C385,"+y+" 385,"+cy+" "+(sx-22)+","+cy,"class":"route"},base));
+  });
+  tokChip(g1,45,cy,70,"cat");
+  el("line",{x1:81,y1:cy,x2:110,y2:cy,"class":"arrow-d","marker-end":"url(#layer-ad)"},g1);
+  el("rect",{x:114,y:cy-34,width:64,height:68,rx:12,"class":"srv"},base);
+  txt(base,146,cy+4,"Router","sub");
+  ys.forEach(function(y,i){
+    boxes.push(el("rect",{x:ex,y:y-19,width:ew,height:38,rx:9,"class":"exp"},base));
+    txt(base,ex+12,y+5,"Expert "+(i+1),"lbl","start");
+    var bw=20*probs[i]/.41;
+    el("rect",{x:ex+82,y:y-5,width:bw,height:10,rx:3,fill:"var(--data)"},g2);
+    txt(g2,ex-8,y-9,probs[i].toFixed(2),"score","end");
+  });
+  el("circle",{cx:sx,cy:cy,r:22,"class":"srv"},base); txt(base,sx,cy+6,"Σ","lbl").setAttribute("font-size","17");
+  txt(g4,sx-4,cy+50,"0.52·E₁","res","middle"); txt(g4,sx-4,cy+68,"+ 0.48·E₃","res","middle");
+  var steps=[].slice.call(document.querySelectorAll("#steps li")),cur=1,groups=[g1,g2,g3,g4];
+  function go(s){
+    cur=s;svg.setAttribute("data-s",s);
+    groups.forEach(function(gr,i){gr.style.opacity=i<s?1:0;});
+    boxes.forEach(function(b,i){var p=pick.indexOf(i)>-1;b.classList.toggle("on",s>=3&&p);b.classList.toggle("off",s>=3&&!p);});
+    routes.forEach(function(r,i){r.classList.toggle("on",s>=3&&pick.indexOf(i)>-1);});
+    outs.forEach(function(r,i){r.classList.toggle("on",s>=4&&pick.indexOf(i)>-1);});
+    steps.forEach(function(li){li.classList.toggle("on",+li.dataset.s===s);});
+    document.getElementById("next").textContent=s===4?"Next token":"Next step";
+  }
+  steps.forEach(function(li){li.addEventListener("click",function(){go(+li.dataset.s);});});
+  document.getElementById("next").addEventListener("click",function(){go(cur===4?1:cur+1);});
+  document.getElementById("prev").addEventListener("click",function(){go(cur===1?1:cur-1);});
+  go(1);
+})();
+
+/* size calculator */
+(function(){
+  var nI=document.getElementById("n-exp"),kI=document.getElementById("k-exp"),grid=document.getElementById("grid");
+  var NS_=5,NE=5,MAX=NS_+64*NE;
+  function fmt(b){return b>=1000?(b/1000).toFixed(2)+"T":Math.round(b)+"B";}
+  function paint(){
+    var n=+nI.value,k=Math.min(+kI.value,n);kI.value=k;
+    var tot=NS_+n*NE,act=NS_+k*NE;
+    document.getElementById("n-out").textContent=n;
+    document.getElementById("k-out").textContent=k;
+    document.getElementById("tot-out").textContent=fmt(tot);
+    document.getElementById("act-out").textContent=fmt(act);
+    document.getElementById("tot-bar").style.width=(tot/MAX*100)+"%";
+    document.getElementById("act-bar").style.width=(act/MAX*100)+"%";
+    document.getElementById("ratio").textContent=Math.round(act/tot*100)+"%";
+    while(grid.firstChild)grid.removeChild(grid.firstChild);
+    var per=32,sz=Math.min(14,520/per-2);
+    for(var i=0;i<n;i++){var r=Math.floor(i/per),c=i%per;
+      el("rect",{x:c*(sz+2.25),y:6+r*(sz+6),width:sz,height:sz,rx:3,fill:i<k?"var(--model)":"var(--surface)",stroke:i<k?"var(--model)":"var(--rule)","stroke-width":1.2},grid);}
+  }
+  nI.addEventListener("input",paint);kI.addEventListener("input",paint);paint();
+})();
+
+/* load balancing demo */
+(function(){
+  var collapsed=[.38,.27,.13,.08,.06,.04,.025,.015],N=8,cap=1.25/N,SCALE=.4;
+  var bars=document.getElementById("bars"),lbls=document.getElementById("bar-lbls"),cells=[];
+  for(var i=0;i<N;i++){var b=document.createElement("i");bars.appendChild(b);cells.push(b);
+    var s=document.createElement("span");s.textContent="E"+(i+1);lbls.appendChild(s);}
+  document.getElementById("cap-line").style.bottom=(cap/SCALE*100)+"%";
+  var sl=document.getElementById("bal");
+  function paint(){
+    var a=+sl.value,mx=0,drop=0;
+    collapsed.forEach(function(v,i){var p=(1-a)*v+a/N;mx=Math.max(mx,p);drop+=Math.max(0,p-cap);
+      cells[i].style.height=Math.min(100,p/SCALE*100)+"%";cells[i].classList.toggle("over",p>cap+1e-9);});
+    document.getElementById("bal-out").textContent=a===0?"off":Math.round(a*100)+"%";
+    document.getElementById("max-out").textContent=Math.round(mx*100)+"%";
+    document.getElementById("drop-out").textContent=Math.round(drop*100)+"%";
+    document.getElementById("max-bar").style.width=(mx*100)+"%";
+    document.getElementById("drop-bar").style.width=(drop*100)+"%";
+  }
+  sl.addEventListener("input",paint);paint();
+})();
+
+/* batch size vs experts touched */
+(function(){
+  var grid=document.getElementById("ex-grid"),sl=document.getElementById("b-size"),btns=[].slice.call(document.querySelectorAll("#preset button"));
+  var N=8,K=2,cells=[];
+  function build(){
+    grid.innerHTML="";cells=[];
+    grid.style.gridTemplateColumns="repeat("+(N>32?32:N)+",1fr)";
+    grid.style.maxWidth=N>32?"none":"420px";
+    for(var i=0;i<N;i++){var c=document.createElement("i");grid.appendChild(c);cells.push(c);}
+  }
+  function paint(){
+    var B=+sl.value,r=mulberry(B*7919+N),on={};
+    for(var t=0;t<B;t++){var picked=0;while(picked<K){var e=Math.floor(r()*N);if(!on[e+"_"+t]){on[e+"_"+t]=1;on[e]=1;picked++;}}}
+    cells.forEach(function(c,i){c.classList.toggle("on",!!on[i]);});
+    var exp=N*(1-Math.pow(1-K/N,B));
+    document.getElementById("b-out").textContent=B===1?"1 word":B+" words";
+    document.getElementById("used-out").textContent=Math.round(exp/N*100)+"%";
+  }
+  btns.forEach(function(b){b.addEventListener("click",function(){
+    N=+b.dataset.n;K=+b.dataset.k;btns.forEach(function(x){x.setAttribute("aria-pressed",x===b?"true":"false");});build();paint();});});
+  sl.addEventListener("input",paint);build();paint();
+})();
+
+/* quiz */
+(function(){
+  var items=[].slice.call(document.querySelectorAll("#quiz > li")),score=document.getElementById("quiz-score"),done=0,right=0;
+  function upd(){score.textContent=done<items.length?done+" of "+items.length+" answered":"You got "+right+" of "+items.length+(right===items.length?". Nicely done.":". Review the sections above and try again.");}
+  items.forEach(function(li){
+    var opts=[].slice.call(li.querySelectorAll(".opt"));
+    opts.forEach(function(o){o.addEventListener("click",function(){
+      var ok=o.hasAttribute("data-ok");done++;if(ok)right++;
+      opts.forEach(function(x){x.disabled=true;if(x.hasAttribute("data-ok"))x.classList.add("right");else if(x===o)x.classList.add("wrong");else x.classList.add("dim");});
+      li.classList.add("answered");upd();});});
+  });
+  document.getElementById("quiz-reset").addEventListener("click",function(){
+    done=0;right=0;items.forEach(function(li){li.classList.remove("answered");
+      li.querySelectorAll(".opt").forEach(function(x){x.disabled=false;x.classList.remove("right","wrong","dim");});});upd();});
+  upd();
+})();
+
+/* decision helper */
+(function(){
+  var ans=[null,null,null,null],v=document.getElementById("verdict");
+  [].slice.call(document.querySelectorAll("#qs li")).forEach(function(li){
+    var q=+li.dataset.q,btns=[].slice.call(li.querySelectorAll("button"));
+    btns.forEach(function(b){b.addEventListener("click",function(){
+      ans[q]=+b.dataset.a;btns.forEach(function(x){x.setAttribute("aria-pressed",x===b?"true":"false");});update();});});
+  });
+  function update(){
+    if(ans.indexOf(null)>-1){v.className="verdict";v.textContent="Answer the four questions to see a suggestion.";return;}
+    if(ans[0]===0){v.className="verdict no";v.textContent="A small dense model is probably enough, and it's simpler to run and fine-tune.";}
+    else if(ans[1]===0){v.className="verdict no";v.textContent="MoE saves computation, not memory. If the full model won't fit, look at a smaller dense model or a quantised MoE, and test the quality loss on your task.";}
+    else if(ans[2]===0){v.className="verdict no";v.textContent="Either can work. Without cost pressure, a dense model of similar quality is often simpler to serve and adapt. Choose on results for your own task.";}
+    else if(ans[3]===1){v.className="verdict no";v.textContent="MoE is a good fit for serving, but small-data fine-tuning is where these models over-fit more easily. Prefer light-touch methods and hold out more evaluation data than usual.";}
+    else{v.className="verdict";v.textContent="Good fit. You get large-model quality at a fraction of the cost per answer. Size the hardware for the total model, not the active part.";}
+  }
+})();
+
+/* reading level + theme */
+function setLevel(l,save){
+  root.setAttribute("data-level",l);
+  document.querySelectorAll("[data-set-level]").forEach(function(b){b.setAttribute("aria-pressed",b.dataset.setLevel===l?"true":"false");});
+  if(save){try{localStorage.setItem("moe-level",l);}catch(e){}}
+}
+document.querySelectorAll("[data-set-level]").forEach(function(b){b.addEventListener("click",function(){
+  setLevel(b.dataset.setLevel,true);
+  try{history.replaceState(null,"","?level="+b.dataset.setLevel+location.hash);}catch(e){}
+});});
+var q=new URLSearchParams(location.search).get("level"),saved=null;
+try{saved=localStorage.getItem("moe-level");}catch(e){}
+setLevel(q==="technical"||q==="general"?q:(saved==="technical"?"technical":"general"),false);
+
+try{var th=localStorage.getItem("theme");if(th==="light"||th==="dark")root.setAttribute("data-theme",th);}catch(e){}
+document.getElementById("theme").addEventListener("click",function(){
+  var cur=root.getAttribute("data-theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");
+  var next=cur==="dark"?"light":"dark";root.setAttribute("data-theme",next);
+  try{localStorage.setItem("theme",next);}catch(e){}
+});
+
+/* maths */
+window.addEventListener("load",function(){
+  if(window.renderMathInElement) renderMathInElement(document.body,{delimiters:[{left:"\\[",right:"\\]",display:true},{left:"\\(",right:"\\)",display:false}],throwOnError:false});
+});
+})();
+</script>
+</body>
+</html>

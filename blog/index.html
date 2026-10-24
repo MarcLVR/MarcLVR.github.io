@@ -3,8 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Blog</title>
+<title>Blog · Marc Pérez Bernús</title>
 <meta name="description" content="Posts on AI, governance, privacy and data.">
+<link rel="canonical" href="https://marclvr.github.io/blog/">
+<meta property="og:url" content="https://marclvr.github.io/blog/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Blog · Marc Pérez Bernús">
+<meta property="og:description" content="Posts on AI, governance, privacy and data.">
+<meta property="og:image" content="https://avatars.githubusercontent.com/u/26000284?v=4">
+<meta name="twitter:card" content="summary">
+<meta name="author" content="Marc Pérez Bernús">
+<link rel="icon" href="https://avatars.githubusercontent.com/u/26000284?v=4">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&family=Public+Sans:wght@400..700&display=swap" rel="stylesheet">
@@ -76,6 +85,16 @@ footer{border-top:1px solid var(--rule);padding:24px 0 40px;font-size:14px;color
   <!-- To add a post: copy one <li> block, put it at the top of the list, and change the link, date, title, summary and tags. -->
   <ol class="posts">
     <li>
+      <a href="mixture-of-experts/index.html">
+        <time class="date" datetime="2026-10-24">24 Oct 2026</time>
+        <div>
+          <h2 class="title">Mixture of Experts: huge models that only use a fraction of themselves</h2>
+          <p class="desc">How MoE models work, why they're cheaper to run, where they break, and what they change for governance and privacy. Visual walkthrough or full technical deep dive.</p>
+          <div class="tags"><span>Machine learning</span><span>LLMs</span><span>Privacy</span><span class="modes">General · Technical</span></div>
+        </div>
+      </a>
+    </li>
+    <li>
       <a href="federated-learning/index.html">
         <time class="date" datetime="2026-09-29">29 Sep 2026</time>
         <div>
@@ -94,11 +113,11 @@ footer{border-top:1px solid var(--rule);padding:24px 0 40px;font-size:14px;color
 (function(){
   var root=document.documentElement;
   document.getElementById("yr").textContent=new Date().getFullYear();
-  try{var t=localStorage.getItem("blog-theme");if(t==="light"||t==="dark")root.setAttribute("data-theme",t);}catch(e){}
+  try{var t=localStorage.getItem("theme");if(t==="light"||t==="dark")root.setAttribute("data-theme",t);}catch(e){}
   document.getElementById("theme").addEventListener("click",function(){
     var cur=root.getAttribute("data-theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");
     var next=cur==="dark"?"light":"dark";root.setAttribute("data-theme",next);
-    try{localStorage.setItem("blog-theme",next);}catch(e){}
+    try{localStorage.setItem("theme",next);}catch(e){}
   });
 })();
 </script>
