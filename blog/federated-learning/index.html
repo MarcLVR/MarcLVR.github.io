@@ -281,7 +281,7 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
 <section id="how">
   <div class="col">
     <h2>How one round works</h2>
-    <p class="gen">The best-known method is called Federated Averaging, or FedAvg, introduced by Google researchers in 2016. Training happens in rounds. Click through the steps to see one.</p>
+    <p class="gen">The best-known method is called Federated Averaging, or FedAvg, proposed by Google researchers in 2016 [1]. Training happens in rounds. Click through the steps to see one.</p>
     <p class="tech">The canonical algorithm is Federated Averaging (FedAvg) [1]. Step through one round on the diagram; the formal description follows.</p>
   </div>
   <div class="wide">
@@ -289,7 +289,7 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
       <svg id="round" class="dg" viewBox="0 0 460 340" data-s="1" aria-label="One round of federated averaging"></svg>
       <div>
         <ol class="steps" id="steps">
-          <li class="on" data-s="1"><b>Send the model</b><span class="gen">The server sends the current model to a group of clients.</span><span class="tech">Server samples \(S_t\subseteq[K]\), \(|S_t|=\max(\lceil CK\rceil,1)\), and broadcasts \(w^t\).</span></li>
+          <li class="on" data-s="1"><b>Send the model</b><span class="gen">The server sends the current model to a group of clients.</span><span class="tech">Server samples \(S_t\subseteq[K]\), \(|S_t|=\max(C\cdot K,1)\), and broadcasts \(w^t\) [1].</span></li>
           <li data-s="2"><b>Train locally</b><span class="gen">Each client trains its copy on its own data for a short while.</span><span class="tech">Each \(k\in S_t\) runs \(\tau=E\,n_k/B\) steps of SGD on \(F_k\) from \(w^t\).</span></li>
           <li data-s="3"><b>Send back the update</b><span class="gen">Clients send back only how the model changed, never the data.</span><span class="tech">Client returns \(\Delta_k^t=w_k^{t,\tau}-w^t\).</span></li>
           <li data-s="4"><b>Combine</b><span class="gen">The server averages the updates into a better model, then starts the next round.</span><span class="tech">\(w^{t+1}=w^t+\sum_{k\in S_t}\frac{n_k}{\sum_{j\in S_t}n_j}\Delta_k^t\).</span></li>
@@ -302,25 +302,25 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
     </figure>
   </div>
   <div class="col">
-    <p class="gen">After many rounds, the shared model has learned from everyone's data, even though the server never saw any of it. The first large-scale use was next-word prediction on phone keyboards: the model learned from what people typed without their messages leaving the phone.</p>
+    <p class="gen">After many rounds, the shared model has learned from everyone's data, even though the server never saw any of it. One of the first large-scale deployments was next-word prediction in Google's Gboard phone keyboard: the model learned from what people typed without their messages leaving the phone [6].</p>
 
     <div class="tech">
       <h3>Objective</h3>
       <p>With \(K\) clients holding \(n_k\) samples each and \(n=\sum_k n_k\), FL solves</p>
       \[\min_{w\in\mathbb{R}^d} F(w)=\sum_{k=1}^{K}p_k F_k(w),\qquad p_k=\frac{n_k}{n},\]
       \[F_k(w)=\frac{1}{n_k}\sum_{i\in D_k}\ell(w;x_i,y_i).\]
-      <p>FedAvg generalises FedSGD (\(\tau=1\), full local batch), trading communication for local computation: with \(\tau\gg1\) the number of rounds to a target accuracy drops by one to two orders of magnitude in the original experiments [1]. The server step can itself be an optimiser: treating \(-\bar\Delta^t\) as a pseudo-gradient gives FedAdam, FedYogi and related methods [8].</p>
+      <p>FedAvg generalises FedSGD (\(\tau=1\), full local batch), trading communication for local computation: in the original experiments, more local steps reduced the rounds to a target accuracy by up to 10–100× relative to FedSGD, though only about 3× on pathologically non-IID MNIST [1]. The server step can itself be an optimiser: treating \(-\bar\Delta^t\) as a pseudo-gradient gives FedAdam, FedYogi and related methods [8].</p>
       <div class="algo">FedAvg(K, C, E, B, η, T)
   initialise w⁰
   for t = 0 … T−1:
-      S_t ← random subset of ⌈C·K⌉ clients
+      S_t ← random subset of max(C·K, 1) clients
       for k ∈ S_t in parallel:
           w ← wᵗ
           for each of E epochs, for each batch b ⊂ D_k of size B:
               w ← w − η ∇ℓ(w; b)
           Δ_k ← w − wᵗ
       wᵗ⁺¹ ← wᵗ + Σ_{k∈S_t} (n_k / Σ_{j∈S_t} n_j) · Δ_k</div>
-      <p>For convex, smooth \(F_k\), FedAvg with partial participation and decaying step size converges at \(\mathcal{O}(1/T)\) on non-IID data, but the constant grows with \(\tau\) and with client heterogeneity, and a fixed step size leaves a non-vanishing bias [7].</p>
+      <p>For \(\mu\)-strongly convex, \(L\)-smooth \(F_k\) with bounded stochastic-gradient variance and bounded gradient norm \(G\), FedAvg with a decaying step size converges at \(\mathcal{O}(1/T)\) on non-IID data, where \(T\) counts total local SGD steps rather than rounds; with partial participation this holds only for specific sampling and averaging schemes. The constant grows with client heterogeneity and with \((E-1)^2G^2\), and with more than one local epoch a fixed step size provably converges to a sub-optimal point on a constructed example [7].</p>
     </div>
   </div>
 </section>
@@ -337,15 +337,15 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
       <div>
         <svg id="crossdevice" class="dg" viewBox="0 0 420 120" aria-hidden="true" style="margin-bottom:10px"></svg>
         <h4>Cross-device</h4>
-        <p class="gen">Millions of phones, watches or cars. Each holds a little data, is often offline, and joins only a few rounds.</p>
-        <p class="tech">\(K\sim10^6\)–\(10^{10}\), each client stateless and available with low probability per round; participation is sampled, dropouts are the norm, and per-client state (as in SCAFFOLD) is impractical. Secure aggregation and user-level DP are standard; Gboard next-word prediction is the canonical production example [6].</p>
+        <p class="gen">Millions of phones, watches or cars. Each holds a little data, is often offline, and often joins only once.</p>
+        <p class="tech">\(K\sim10^6\)–\(10^{10}\) [2, Table 2]; clients are stateless and each will likely participate only once in a task, and dropouts are expected (5% or more per round) [2, Table 1], so per-client state (as in SCAFFOLD [5]) is impractical. Secure aggregation and user-level DP are the main privacy layers proposed for this setting [2]; Gboard next-word prediction is the canonical production example [6].</p>
         <dl class="facts"><dt>Clients</dt><dd>Millions</dd><dt>Hard part</dt><dd>Unreliable devices, bandwidth</dd><dt>Example</dt><dd>Keyboard prediction</dd></dl>
       </div>
       <div>
         <svg id="crosssilo" class="dg" viewBox="0 0 420 120" aria-hidden="true" style="margin-bottom:10px"></svg>
         <h4>Cross-silo</h4>
         <p class="gen">A handful of organisations such as hospitals or banks. Each has lots of data and good infrastructure. The hard part is agreeing on the rules.</p>
-        <p class="tech">\(K\sim2\)–\(100\), almost always available, stateful and addressable; full participation per round is feasible. Aggregates over few clients reveal more, participants may be competitors, and the adversary is often an honest-but-curious peer.</p>
+        <p class="tech">\(K\sim2\)–\(100\), almost always available, stateful and addressable; full participation per round is feasible. Aggregates over few clients reveal more, participants may be business competitors [2], and protocols typically assume honest-but-curious participants [24].</p>
         <dl class="facts"><dt>Clients</dt><dd>2 to 100</dd><dt>Hard part</dt><dd>Governance, trust between parties</dd><dt>Example</dt><dd>Hospitals training a diagnostic model</dd></dl>
       </div>
     </div>
@@ -353,7 +353,7 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
   <div class="col">
     <h3>How the data is split</h3>
     <p class="gen">There's a second distinction. In <strong>horizontal</strong> federated learning, participants have the same kind of information about different people. In <strong>vertical</strong> federated learning, they have different information about the same people.</p>
-    <p class="tech">Horizontal FL partitions the sample space: \(\mathcal{X}_A=\mathcal{X}_B\), \(I_A\neq I_B\). Vertical FL partitions the feature space: \(I_A\cap I_B\neq\emptyset\), \(\mathcal{X}_A\neq\mathcal{X}_B\), so each sample's feature vector is \(x=[x^A;x^B]\) and labels usually sit with one party.</p>
+    <p class="tech">Horizontal FL partitions the sample space: \(\mathcal{X}_A=\mathcal{X}_B\), \(I_A\neq I_B\). Vertical FL partitions the feature space: \(I_A\cap I_B\neq\emptyset\), \(\mathcal{X}_A\neq\mathcal{X}_B\), so each sample's feature vector is \(x=[x^A;x^B]\) and labels usually sit with one party [24].</p>
   </div>
   <div class="wide">
     <figure class="versus">
@@ -371,7 +371,7 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
   </div>
   <div class="col tech">
     <div class="tech-block">
-      <p><strong>Vertical FL mechanics.</strong> Parties first align entities with private set intersection (PSI), so neither learns the other's non-overlapping IDs. For a generalised linear model the logit decomposes as \(z_i=w_A^\top x_i^A+w_B^\top x_i^B\); parties exchange partial logits and residuals under additively homomorphic encryption (e.g. Paillier) so the label holder can compute \(\partial\ell/\partial z_i\) without seeing \(x^A\). For deep models the common pattern is split learning: per-party bottom networks produce embeddings \(h^A,h^B\), and a top network owned by the label holder is trained on \([h^A;h^B]\). Intermediate activations and their gradients leak both features and labels, so vertical FL needs its own leakage analysis.</p>
+      <p><strong>Vertical FL mechanics.</strong> Parties first align entities with private set intersection (PSI) or privacy-preserving record linkage, so neither learns the other's non-overlapping IDs [24, 25]. For linear models, and for logistic regression via a Taylor approximation of the loss, the logit decomposes as \(z_i=w_A^\top x_i^A+w_B^\top x_i^B\); parties exchange additively homomorphically encrypted (e.g. Paillier) intermediate results, typically with a non-colluding coordinator holding the decryption key [24, 25]. For deep models a common pattern is split learning, where parties exchange activations and gradients at a cut layer; these values can still reveal information about the underlying data [2], so vertical FL needs its own leakage analysis.</p>
     </div>
   </div>
 </section>
@@ -381,7 +381,7 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
   <div class="col">
     <h2>What makes it hard</h2>
     <p class="gen">Federated learning isn't just normal training spread over several machines. Four problems are specific to it.</p>
-    <p class="tech">Four properties separate FL from datacenter distributed training [2, 11]: statistical heterogeneity, communication cost, systems heterogeneity and the loss of data observability.</p>
+    <p class="tech">Li et al. [11] list four core challenges: expensive communication, systems heterogeneity, statistical heterogeneity and privacy. A further practical one is that the data cannot be inspected for validation or debugging [2].</p>
   </div>
   <div class="wide">
     <div class="panel chal">
@@ -389,25 +389,25 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
         <svg id="ch-noniid" class="dg" viewBox="0 0 260 96" aria-hidden="true"></svg>
         <h4>Every client's data is different</h4>
         <p class="gen">Each client reflects its own users and habits, so they pull the model in different directions. The result can be slower training, or a model that works for big clients and poorly for small ones.</p>
-        <p class="tech">Non-IID data: \(P_k(x,y)\neq P_j(x,y)\) through label skew, feature skew or concept shift. With \(\tau>1\) local steps, client optima \(w_k^\star\neq w^\star\) cause client drift (see below).</p>
+        <p class="tech">Non-IID data: \(P_k(x,y)\neq P_j(x,y)\) through label skew, feature skew or concept shift [2]. With \(\tau>1\) local steps, client optima \(w_k^\star\neq w^\star\) cause client drift (see below).</p>
       </div>
       <div>
         <svg id="ch-comm" class="dg" viewBox="0 0 260 96" aria-hidden="true"></svg>
         <h4>Communication is the bottleneck</h4>
         <p class="gen">Sending the model back and forth often costs more than the training itself, especially for big models on mobile networks.</p>
-        <p class="tech">Per-round uplink is \(\mathcal{O}(|S_t|\,d)\) and uplink bandwidth is asymmetric. Mitigations: more local work, quantisation, top-\(k\) sparsification with error feedback, low-rank or sketched updates, and parameter-efficient fine-tuning for large models.</p>
+        <p class="tech">Per-round uplink is \(\mathcal{O}(|S_t|\,d)\), and upload is typically slower than download [2]. Combining FedAvg's extra local work with sparsification and/or quantisation of updates has cut communication substantially with minimal accuracy loss [2].</p>
       </div>
       <div>
         <svg id="ch-drop" class="dg" viewBox="0 0 260 96" aria-hidden="true"></svg>
         <h4>Clients come and go</h4>
         <p class="gen">Devices disconnect, run slowly or have different hardware. The system has to make progress with whoever shows up.</p>
-        <p class="tech">Stragglers and dropouts bias the aggregate toward fast, well-connected clients. Variable \(\tau_k\) causes objective inconsistency, which FedNova corrects by normalising updates by local step count [10].</p>
+        <p class="tech">Stragglers and dropouts introduce bias, since differences in device availability skew which clients contribute [2]. Variable \(\tau_k\) causes objective inconsistency, which FedNova corrects by normalising updates by local step count [10].</p>
       </div>
       <div>
         <svg id="ch-blind" class="dg" viewBox="0 0 260 96" aria-hidden="true"></svg>
         <h4>Nobody can look at the data</h4>
         <p class="gen">Cleaning data, checking labels, spotting bias and debugging all get harder when no one can inspect the training set.</p>
-        <p class="tech">Data validation, label-noise estimation, fairness auditing and error analysis must run as federated computations (federated analytics), themselves subject to the same privacy constraints.</p>
+        <p class="tech">Modellers normally inspect data directly to validate it and debug models; doing this without seeing the data remains a major open problem [2].</p>
       </div>
     </div>
   </div>
@@ -431,10 +431,10 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
         <text x="40" y="232" class="sub">Local SGD drifts to each client's optimum; the average of drifted models is not w*.</text>
       </svg>
     </figure>
-    <p>Under the bounded gradient dissimilarity assumption \(\frac1K\sum_k\|\nabla F_k(w)\|^2\le G^2+B^2\|\nabla F(w)\|^2\), FedAvg's error has a term growing with \(\eta^2\tau^2G^2\). Three families of fixes:</p>
+    <p>Under the bounded gradient dissimilarity assumption \(\frac1K\sum_k\|\nabla F_k(w)\|^2\le G^2+\Lambda^2\|\nabla F(w)\|^2\) [5], FedAvg's bound contains a client-drift term that grows roughly with \((\eta\tau)^2G^2\) [5]. Three families of fixes:</p>
     <p><strong>Proximal regularisation.</strong> FedProx [9] has each client minimise \(F_k(w)+\frac{\mu}{2}\|w-w^t\|^2\), limiting how far local iterates travel.</p>
     <p><strong>Control variates.</strong> SCAFFOLD [5] keeps a server variate \(c\) and client variates \(c_k\) estimating the gradient gap, and corrects each local step: \(w\leftarrow w-\eta\,(g_k(w)-c_k+c)\). This removes the dependence on \(G\) but needs stateful clients.</p>
-    <p><strong>Personalisation.</strong> When a single \(w^\star\) is the wrong target, optimise per-client models coupled to a global one, e.g. Ditto's \(\min_{v_k}F_k(v_k)+\frac{\lambda}{2}\|v_k-w^\star\|^2\), local fine-tuning, or meta-learning initialisations.</p>
+    <p><strong>Personalisation.</strong> When a single \(w^\star\) is the wrong target, optimise per-client models coupled to a global one, e.g. Ditto's \(\min_{v_k}F_k(v_k)+\frac{\lambda}{2}\|v_k-w^\star\|^2\), local fine-tuning, or meta-learning initialisations [22].</p>
   </div>
 </section>
 
@@ -445,16 +445,16 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
     <div class="callout">
       <p class="big">Keeping the data at home is not the same as keeping it private.</p>
       <p class="gen" style="margin-top:8px">The updates clients send are calculated from their data, so they carry information about it.</p>
-      <p class="tech" style="margin-top:8px">Updates are deterministic functions of \(D_k\); without further mechanisms FL offers data locality, not a privacy guarantee.</p>
+      <p class="tech" style="margin-top:8px">Updates are computed from \(D_k\) (plus SGD randomness) and carry information about it; without further mechanisms FL offers data locality, not a privacy guarantee.</p>
     </div>
 
     <p class="gen" style="margin-top:22px">Researchers have shown that in some conditions, a server can partly or fully rebuild training examples from the updates it receives. Updates can also reveal whether a particular person's data was used. And because nobody sees the data, a malicious client can send a doctored update to damage the model or hide a backdoor in it.</p>
 
     <div class="tech" style="margin-top:22px">
       <h3>Why updates leak</h3>
-      <p>For a fully connected layer \(z=Wx+b\), the gradients are \(\nabla_W\ell=\delta x^\top\) and \(\nabla_b\ell=\delta\) with \(\delta=\partial\ell/\partial z\). For a single example, any row with \(\delta_i\neq0\) gives the input exactly:</p>
+      <p>For a fully connected layer \(z=Wx+b\), the gradients are \(\nabla_W\ell=\delta x^\top\) and \(\nabla_b\ell=\delta\) with \(\delta=\partial\ell/\partial z\). For a single example, any row with \(\delta_i\neq0\) gives the input exactly [13]:</p>
       \[x^\top=\frac{(\nabla_W\ell)_{i,:}}{(\nabla_b\ell)_i}.\]
-      <p>For deeper networks and batches, gradient inversion solves \(\min_{x',y'}\;d\big(\nabla_w\ell(w;x',y'),\,\nabla_w\ell(w;x,y)\big)+\alpha\,\mathcal{R}(x')\), with \(d\) the Euclidean distance (DLG [12]) or cosine distance plus a total-variation prior (Geiping et al. [13]); the latter recovers recognisable images from multi-image batches and from FedAvg updates with several local steps. For cross-entropy the label of a single example follows from the sign pattern of the last-layer gradient (iDLG [14]). White-box membership inference against FL participants is also effective [15]. On the integrity side, model replacement attacks scale a backdoored update by roughly \(K/\eta\) so it survives averaging [16].</p>
+      <p>For deeper networks and batches, gradient inversion solves \(\min_{x',y'}\;d\big(\nabla_w\ell(w;x',y'),\,\nabla_w\ell(w;x,y)\big)+\alpha\,\mathcal{R}(x')\), with \(d\) the squared Euclidean distance (DLG [12]) or cosine distance plus a total-variation prior (Geiping et al. [13]); the latter recovers some recognisable images even from batches of 100 and from multi-step local updates. For cross-entropy with one-hot labels, the label of a single example follows from the sign pattern of the last-layer gradient, given per-example gradients (iDLG [14]). White-box membership inference against FL participants is also effective [15]. On the integrity side, model replacement attacks scale the backdoored model by \(\gamma=n/\eta\), where \(n\) is the number of participants and \(\eta\) the server learning rate in their aggregation rule, so it survives averaging [16].</p>
     </div>
   </div>
 
@@ -473,7 +473,7 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
         </div>
       </div>
       <figcaption class="gen">Illustrative. Drag the slider: adding noise hides the record, but it also makes the model worse. Picking the level is a decision, not a default.</figcaption>
-      <figcaption class="tech">Illustrative. Reconstruction is \(x+\sigma z\) for fixed \(z\sim\mathcal N(0,I)\); the left meter is \(\max(0,\cos(x,\hat x))\). The utility curve is a stylised monotone decay, not a measured result.</figcaption>
+      <figcaption class="tech">Illustrative. Reconstruction is \(x+\sigma z\) for fixed \(z\sim\mathcal N(0,I)\); the “How recognisable” meter is \(\max(0,\cos(x,\hat x))\). The utility curve is a stylised monotone decay, not a measured result.</figcaption>
     </figure>
   </div>
 
@@ -484,7 +484,7 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
         <h4>Secure aggregation</h4>
         <div>
           <p class="gen">A cryptographic protocol that lets the server see only the total of all updates, never any single one.</p>
-          <p class="tech">Bonawitz et al. [3]: clients \(i<j\) agree on seeds \(s_{ij}\) by Diffie–Hellman; client \(i\) sends \(y_i=x_i+\sum_{j>i}\mathrm{PRG}(s_{ij})-\sum_{j<i}\mathrm{PRG}(s_{ij})\bmod R\). Masks cancel in \(\sum_i y_i\). Dropouts are handled with \(t\)-of-\(n\) Shamir shares of the seeds; secure against a server colluding with fewer than \(t\) clients. Cost is \(\mathcal{O}(n^2)\) in the original protocol and \(\mathcal{O}(n\log n)\) with sparse communication graphs.</p>
+          <p class="tech">Bonawitz et al. [3]: each pair of clients agrees on a seed \(s_{ij}\) by Diffie–Hellman key agreement, and client \(i\) sends \(y_i=x_i+\mathrm{PRG}(b_i)+\sum_{j>i}\mathrm{PRG}(s_{ij})-\sum_{j&lt;i}\mathrm{PRG}(s_{ji})\bmod R\). Pairwise masks cancel in \(\sum_i y_i\). The self-mask seed \(b_i\) and the pairwise seeds are \(t\)-of-\(n\) Shamir-shared, so the server can remove the masks of clients that drop out, while the self-mask keeps a late client's input hidden. In the honest-but-curious model, a server colluding with fewer than \(t\) clients learns only the sum of the other inputs; against an active server, \(t\ge\lfloor 2n/3\rfloor+1\) tolerates up to \(\lceil n/3\rceil-1\) corrupt clients [3]. Server cost is \(\mathcal{O}(n^2+mn)\) communication and \(\mathcal{O}(mn^2)\) computation for \(m\)-dimensional inputs [3]; Bell et al. [21] replace the complete graph with a random \(\mathcal{O}(\log n)\)-degree graph, giving polylogarithmic per-client cost and \(\mathcal{O}(n\log n+nm)\) server communication.</p>
           <p class="cost">Protects individual updates. Doesn't hide what the total reveals.</p>
         </div>
       </div>
@@ -492,7 +492,7 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
         <h4>Differential privacy</h4>
         <div>
           <p class="gen">Caps how much any one person or participant can change the model, by trimming each update and adding carefully measured noise. It gives a provable privacy guarantee.</p>
-          <p class="tech">DP-FedAvg [4] provides user-level \((\varepsilon,\delta)\)-DP, where neighbouring datasets differ in one client's entire data: clip \(\bar\Delta_k=\Delta_k\min(1,S/\|\Delta_k\|_2)\), then release \(\frac{1}{qK}\big(\sum_{k\in S_t}\bar\Delta_k+\mathcal N(0,\sigma^2S^2I)\big)\). Privacy loss over \(T\) rounds with sampling rate \(q\) is tracked with the moments or Rényi accountant [17]; roughly \(\varepsilon=\mathcal{O}\big(q\sqrt{T\log(1/\delta)}/\sigma\big)\). Central DP with secure aggregation needs distributed noise generation; local DP avoids trusting the server at a much higher utility cost.</p>
+          <p class="tech">DP-FedAvg [4] provides user-level \((\varepsilon,\delta)\)-DP, where neighbouring datasets differ in one client's entire data: clip \(\bar\Delta_k=\Delta_k\min(1,S/\|\Delta_k\|_2)\), then, with equal client weights and each client sampled independently with probability \(q\), release \(\frac{1}{qK}\big(\sum_{k\in S_t}\bar\Delta_k+\mathcal N(0,\sigma^2S^2I)\big)\) [4]. Privacy loss over \(T\) rounds is tracked with the moments accountant [20], as in [4], or with Rényi DP accounting [17]; the corresponding DP-SGD bound gives, for \(\varepsilon&lt;c_1q^2T\), \(\varepsilon=\mathcal{O}\big(q\sqrt{T\log(1/\delta)}/\sigma\big)\) [20]. Central DP with secure aggregation needs distributed noise generation; local DP avoids trusting the server, but maintaining utility under it is difficult [2].</p>
           <p class="cost">Protects against what the model and totals reveal. Costs accuracy.</p>
         </div>
       </div>
@@ -500,7 +500,7 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
         <h4>Robust aggregation</h4>
         <div>
           <p class="gen">Replaces the simple average with methods that ignore extreme updates, making it harder for one bad participant to poison the model.</p>
-          <p class="tech">Krum [18] selects the update minimising the summed distance to its \(n-f-2\) nearest neighbours (tolerates \(f\) Byzantine clients with \(2f+2<n\)); coordinate-wise median and trimmed mean have order-optimal statistical rates [19]. These rules need per-update visibility and therefore conflict with secure aggregation unless evaluated inside MPC; norm bounding is the usual compromise.</p>
+          <p class="tech">Krum [18] selects the update minimising the sum of squared distances to its \(n-f-2\) nearest neighbours, and is Byzantine-resilient for \(2f+2&lt;n\) under a condition on gradient variance; coordinate-wise median and trimmed mean achieve order-optimal statistical error rates for strongly convex losses [19]. These rules need per-update visibility, so secure aggregation makes them harder to apply; bounding update norms is a common compromise [2].</p>
           <p class="cost">Protects the model's integrity. Can penalise honest but unusual clients.</p>
         </div>
       </div>
@@ -553,7 +553,7 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
         <tbody>
           <tr><td>Flower</td><td>A flexible starting point. Works with PyTorch, TensorFlow, JAX or scikit-learn, from simulation to production.</td></tr>
           <tr><td>TensorFlow Federated</td><td>Research and simulation of federated algorithms in the TensorFlow ecosystem.</td></tr>
-          <tr><td>NVIDIA FLARE</td><td>Cross-silo projects between organisations, common in healthcare.</td></tr>
+          <tr><td>NVIDIA FLARE</td><td>A domain-agnostic SDK for turning existing training code into federated workflows, from simulation to production.</td></tr>
           <tr><td>FATE</td><td>Cross-organisation and vertical setups, with built-in encryption.</td></tr>
         </tbody>
       </table>
@@ -563,28 +563,37 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
 
     <div class="tech">
       <h3>Open problems</h3>
-      <p>Tight privacy–utility trade-offs for large models under user-level DP; compatibility of Byzantine robustness with secure aggregation; fairness across clients (e.g. q-FFL) versus average accuracy; federated unlearning with verifiable guarantees; incentive design and contribution valuation in cross-silo settings; and federated fine-tuning of foundation models under tight communication budgets [2].</p>
+      <p>Tight privacy–utility trade-offs under user-level DP; compatibility of Byzantine robustness with secure aggregation; fairness across clients (e.g. q-FFL [23]) versus average accuracy; and incentive design in cross-silo settings [2].</p>
+    </div>
+    <div>
       <h3>References</h3>
+      <p style="font-size:14px;color:var(--muted)">Peer-reviewed unless marked otherwise. Preprints have not been through independent peer review.</p>
       <ol class="refs">
-        <li>McMahan et al. Communication-Efficient Learning of Deep Networks from Decentralized Data. AISTATS 2017.</li>
-        <li>Kairouz et al. Advances and Open Problems in Federated Learning. Foundations and Trends in ML, 2021.</li>
+        <li>McMahan, Moore, Ramage, Hampson, Agüera y Arcas. Communication-Efficient Learning of Deep Networks from Decentralized Data. AISTATS 2017.</li>
+        <li>Kairouz, McMahan, et al. Advances and Open Problems in Federated Learning. Foundations and Trends in Machine Learning 14(1–2), 2021.</li>
         <li>Bonawitz et al. Practical Secure Aggregation for Privacy-Preserving Machine Learning. ACM CCS 2017.</li>
         <li>McMahan, Ramage, Talwar, Zhang. Learning Differentially Private Recurrent Language Models. ICLR 2018.</li>
-        <li>Karimireddy et al. SCAFFOLD: Stochastic Controlled Averaging for Federated Learning. ICML 2020.</li>
-        <li>Hard et al. Federated Learning for Mobile Keyboard Prediction. arXiv:1811.03604, 2018.</li>
+        <li>Karimireddy, Kale, Mohri, Reddi, Stich, Suresh. SCAFFOLD: Stochastic Controlled Averaging for Federated Learning. ICML 2020.</li>
+        <li>Hard et al. Federated Learning for Mobile Keyboard Prediction. arXiv:1811.03604, 2018. <em>Preprint.</em></li>
         <li>Li, Huang, Yang, Wang, Zhang. On the Convergence of FedAvg on Non-IID Data. ICLR 2020.</li>
         <li>Reddi et al. Adaptive Federated Optimization. ICLR 2021.</li>
-        <li>Li et al. Federated Optimization in Heterogeneous Networks (FedProx). MLSys 2020.</li>
-        <li>Wang et al. Tackling the Objective Inconsistency Problem in Heterogeneous Federated Optimization (FedNova). NeurIPS 2020.</li>
-        <li>Li, Sahu, Talwalkar, Smith. Federated Learning: Challenges, Methods, and Future Directions. IEEE Signal Processing Magazine, 2020.</li>
+        <li>Li, Sahu, Zaheer, Sanjabi, Talwalkar, Smith. Federated Optimization in Heterogeneous Networks (FedProx). MLSys 2020.</li>
+        <li>Wang, Liu, Liang, Joshi, Poor. Tackling the Objective Inconsistency Problem in Heterogeneous Federated Optimization (FedNova). NeurIPS 2020.</li>
+        <li>Li, Sahu, Talwalkar, Smith. Federated Learning: Challenges, Methods, and Future Directions. IEEE Signal Processing Magazine 37(3), 2020.</li>
         <li>Zhu, Liu, Han. Deep Leakage from Gradients. NeurIPS 2019.</li>
-        <li>Geiping, Bauermeister, Dröge, Moeller. Inverting Gradients: How Easy Is It to Break Privacy in Federated Learning? NeurIPS 2020.</li>
-        <li>Zhao, Mopuri, Bilen. iDLG: Improved Deep Leakage from Gradients. arXiv:2001.02610, 2020.</li>
-        <li>Nasr, Shokri, Houmansadr. Comprehensive Privacy Analysis of Deep Learning. IEEE S&amp;P 2019.</li>
-        <li>Bagdasaryan et al. How To Backdoor Federated Learning. AISTATS 2020.</li>
+        <li>Geiping, Bauermeister, Dröge, Moeller. Inverting Gradients – How Easy Is It to Break Privacy in Federated Learning? NeurIPS 2020.</li>
+        <li>Zhao, Mopuri, Bilen. iDLG: Improved Deep Leakage from Gradients. arXiv:2001.02610, 2020. <em>Preprint.</em></li>
+        <li>Nasr, Shokri, Houmansadr. Comprehensive Privacy Analysis of Deep Learning: Passive and Active White-box Inference Attacks against Centralized and Federated Learning. IEEE S&amp;P 2019.</li>
+        <li>Bagdasaryan, Veit, Hua, Estrin, Shmatikov. How To Backdoor Federated Learning. AISTATS 2020.</li>
         <li>Mironov. Rényi Differential Privacy. IEEE CSF 2017.</li>
-        <li>Blanchard et al. Machine Learning with Adversaries: Byzantine Tolerant Gradient Descent. NeurIPS 2017.</li>
-        <li>Yin et al. Byzantine-Robust Distributed Learning: Towards Optimal Statistical Rates. ICML 2018.</li>
+        <li>Blanchard, El Mhamdi, Guerraoui, Stainer. Machine Learning with Adversaries: Byzantine Tolerant Gradient Descent. NeurIPS 2017.</li>
+        <li>Yin, Chen, Ramchandran, Bartlett. Byzantine-Robust Distributed Learning: Towards Optimal Statistical Rates. ICML 2018.</li>
+        <li>Abadi, Chu, Goodfellow, McMahan, Mironov, Talwar, Zhang. Deep Learning with Differential Privacy. ACM CCS 2016.</li>
+        <li>Bell, Bonawitz, Gascón, Lepoint, Raykova. Secure Single-Server Aggregation with (Poly)Logarithmic Overhead. ACM CCS 2020.</li>
+        <li>Li, Hu, Beirami, Smith. Ditto: Fair and Robust Federated Learning Through Personalization. ICML 2021.</li>
+        <li>Li, Sanjabi, Beirami, Smith. Fair Resource Allocation in Federated Learning. ICLR 2020.</li>
+        <li>Yang, Liu, Chen, Tong. Federated Machine Learning: Concept and Applications. ACM Transactions on Intelligent Systems and Technology 10(2), 2019.</li>
+        <li>Hardy et al. Private Federated Learning on Vertically Partitioned Data via Entity Resolution and Additively Homomorphic Encryption. arXiv:1711.10677, 2017. <em>Preprint.</em></li>
       </ol>
     </div>
   </div>

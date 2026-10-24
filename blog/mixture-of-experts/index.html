@@ -271,7 +271,7 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
         <span><i class="sw idle"></i>Idle expert. Stored, but not used.</span>
       </div>
       <figcaption class="gen">Illustrative routes. The router learns them during training, and they don't follow topics: there is no "animal expert". Neighbouring words often share an expert, as here.</figcaption>
-      <figcaption class="tech">Illustrative top-2 routing over one sequence. Real routing is learned and correlates more with syntax and position than with topic [6]; consecutive tokens frequently share an expert.</figcaption>
+      <figcaption class="tech">Illustrative top-2 routing over one sequence. In Mixtral, routing showed no obvious topic specialisation, but some syntactic structure and positional locality: consecutive tokens frequently share an expert [6].</figcaption>
     </div>
   </div>
 </div>
@@ -282,7 +282,7 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
     <h2>Why not just make the model bigger?</h2>
     <p class="big gen">Bigger models are usually better. But in a normal model, every part of the network does work for every single word. Double the size and you double the cost of every answer.</p>
     <p class="gen">A Mixture of Experts (MoE) model breaks that link. It holds a lot of knowledge in many separate blocks, called experts, but for each word it only switches on the few that are most relevant. You get the capacity of a very large model at roughly the running cost of a much smaller one.</p>
-    <p class="tech">In a dense transformer, forward FLOPs per token scale as \(\approx 2N\) for \(N\) parameters, so capacity and per-token compute are locked together. Conditional computation decouples them: a sparsely activated layer holds \(N_{\text{total}}\) parameters but evaluates only \(N_{\text{active}}\ll N_{\text{total}}\) per token, chosen by a learned, input-dependent gate [1, 2]. Empirically, at fixed training compute, sparse models reach a given loss with fewer FLOPs than dense ones, and the gap grows with expert count up to a point [4, 5]. The price is paid in memory, communication and optimisation stability, not in arithmetic.</p>
+    <p class="tech">In a dense transformer, forward FLOPs per token are \(\approx 2P\) for \(P\) non-embedding parameters, ignoring the context-dependent attention term [21], so capacity and per-token compute are locked together. Mixtures of experts combine several networks through a learned, input-dependent gate [1]; sparse gating, which evaluates only a few experts per token, was introduced in [2]. A sparse model then holds \(N_{\text{total}}\) parameters but uses only \(N_{\text{active}}\ll N_{\text{total}}\) per token. Empirically, at the same compute per token, sparse models reach a given loss in fewer training steps than dense ones, and the gain grows with expert count but diminishes beyond a few hundred experts [4, 5]. The price is paid in memory, communication and optimisation stability, not in arithmetic.</p>
   </div>
   <div class="wide">
     <figure class="versus">
@@ -306,8 +306,8 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
 <section id="how">
   <div class="col">
     <h2>What happens inside one layer</h2>
-    <p class="gen">A language model is a stack of layers. In an MoE model, part of each layer, the part that does most of the "thinking" about each word, is replaced by a set of experts plus a small <strong>router</strong> that decides which experts to use. Click through the steps.</p>
-    <p class="tech">In a transformer block, the MoE sublayer replaces the position-wise feed-forward network (FFN), in every block or every other block; attention stays dense. Each expert \(E_i\) is an ordinary FFN (typically SwiGLU). Step through the routing of one token; the formal description follows.</p>
+    <p class="gen">A language model is a stack of layers. In an MoE model, part of each layer (in some models, every other layer), the feed-forward part that holds most of the parameters, is replaced by a set of experts plus a small <strong>router</strong> that decides which experts to use. Click through the steps.</p>
+    <p class="tech">In a transformer block, the MoE sublayer replaces the position-wise feed-forward network (FFN) in all or some blocks (every block in Mixtral [6], every other block in GShard [3], all but the first three in DeepSeek-V3 [8]); attention stays dense. Each expert \(E_i\) is an ordinary FFN (typically SwiGLU). Step through the routing of one token; the formal description follows.</p>
   </div>
   <div class="wide">
     <figure class="panel stepper">
@@ -315,7 +315,7 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
       <div>
         <ol class="steps" id="steps">
           <li class="on" data-s="1"><b>A token arrives</b><span class="gen">Each piece of text reaches the layer as a list of numbers describing it in context.</span><span class="tech">Hidden state \(x\in\mathbb{R}^d\) enters the MoE sublayer after attention and normalisation.</span></li>
-          <li data-s="2"><b>The router scores every expert</b><span class="gen">A tiny network gives each expert a score: how useful it should be for this token.</span><span class="tech">\(p=\mathrm{softmax}(W_r x)\), with \(W_r\in\mathbb{R}^{N\times d}\). This costs \(Nd\) FLOPs, negligible next to an expert.</span></li>
+          <li data-s="2"><b>The router scores every expert</b><span class="gen">A tiny network gives each expert a score: how useful it should be for this token.</span><span class="tech">\(p=\mathrm{softmax}(W_r x)\), with \(W_r\in\mathbb{R}^{N\times d}\). This costs \(\approx 2Nd\) FLOPs for \(N\) experts, negligible next to an expert.</span></li>
           <li data-s="3"><b>Pick the best two</b><span class="gen">Only the top-scoring experts run. The others stay idle for this token.</span><span class="tech">\(\mathcal{T}=\mathrm{TopK}(p,k)\) with \(k=2\); only \(E_i,\ i\in\mathcal{T}\) are evaluated.</span></li>
           <li data-s="4"><b>Blend the answers</b><span class="gen">The chosen experts' outputs are mixed, weighted by their scores, and passed on to the next layer.</span><span class="tech">\(y=\sum_{i\in\mathcal{T}}\tilde p_i\,E_i(x)\), \(\tilde p_i=p_i/\sum_{j\in\mathcal{T}}p_j\).</span></li>
         </ol>
@@ -327,14 +327,14 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
     </figure>
   </div>
   <div class="col">
-    <p class="gen">This happens independently for every token in every MoE layer, so a single sentence takes many different paths through the model. Nobody tells the router which expert to use: it learns that during training, together with the experts themselves.</p>
+    <p class="gen">This happens independently for every token in every MoE layer, so a single sentence takes many different paths through the model. In most MoE models nobody tells the router which expert to use: it learns that during training, together with the experts themselves. (Some recent models, such as DeepSeek-V4, instead use a fixed rule based on the word itself in their first few layers [25].)</p>
 
     <div class="tech">
       <h3>Gating</h3>
       <p>Shazeer et al. [2] introduced the noisy top-\(k\) gate for LSTMs, the form most later work builds on:</p>
       \[G(x)=\mathrm{softmax}\big(\mathrm{KeepTopK}(H(x),k)\big),\]
       \[H(x)_i=(W_r x)_i+\varepsilon_i\cdot\mathrm{softplus}\big((W_{\text{noise}}x)_i\big),\]
-      <p>with \(\varepsilon_i\sim\mathcal N(0,1)\) and KeepTopK setting non-selected logits to \(-\infty\). The layer output is \(y=\sum_{i=1}^{N}G(x)_i\,E_i(x)\), and since \(G(x)\) is \(k\)-sparse only \(k\) experts are computed. The router receives gradient only through the selected gate values, so the selection itself is non-differentiable; it is learned indirectly through which experts' weights help the loss. Switch Transformer [4] showed \(k=1\) works and simplifies routing; GShard [3] and Mixtral [6] use \(k=2\); DeepSeek-V3 [8] selects 8 of 256 fine-grained experts with sigmoid affinities.</p>
+      <p>with \(\varepsilon_i\sim\mathcal N(0,1)\) and KeepTopK setting non-selected logits to \(-\infty\). The layer output is \(y=\sum_{i=1}^{N}G(x)_i\,E_i(x)\), and since \(G(x)\) is \(k\)-sparse only \(k\) experts are computed. For \(k>1\) the router receives gradient only through the selected gate values [2], so the selection itself is non-differentiable [3]; it is learned indirectly through which experts' weights help the loss. Switch Transformer [4] showed \(k=1\) works and simplifies routing; GShard [3] and Mixtral [6] use \(k=2\); DeepSeek-V3 [8] selects 8 of 256 fine-grained experts with sigmoid affinities.</p>
       <div class="algo">MoE_layer(X ∈ ℝ^{T×d}, W_r, {E_1..E_N}, k)
   P ← softmax(X W_rᵀ)                     # T × N router probs
   for each token t:
@@ -347,8 +347,8 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
       y_t ← Σ_{i∈S_t} g_t[i] · Y_i[t]      # combine (all-to-all)
   return Y</div>
       <h3>Fine-grained and shared experts</h3>
-      <p>DeepSeekMoE [7] splits each expert into \(m\) smaller ones and activates \(mk\) of them, keeping compute constant while increasing the number of possible combinations from \(\binom{N}{k}\) to \(\binom{mN}{mk}\). It also adds \(K_s\) <em>shared</em> experts that every token passes through, so common knowledge isn't duplicated across routed experts:</p>
-      \[h=x+\sum_{i=1}^{K_s}E^{\text{sh}}_i(x)+\sum_{i\in\mathcal{T}}g_i\,E_i(x).\]
+      <p>DeepSeekMoE [7] splits each expert into \(m\) smaller ones and activates \(mk\) of them, keeping compute constant while increasing the number of possible combinations from \(\binom{N}{k}\) to \(\binom{mN}{mk}\). It also turns \(K_s\) of the experts into <em>shared</em> experts that every token passes through, and activates \(K_s\) fewer routed experts so compute stays constant; the aim is to reduce duplication of common knowledge across routed experts [7]:</p>
+      \[h=x+\sum_{i=1}^{K_s}E^{\text{sh}}_i(x)+\sum_{i\in\mathcal{T}}g_i\,E_i(x),\qquad |\mathcal{T}|=mk-K_s.\]
     </div>
   </div>
 </section>
@@ -396,10 +396,12 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
           <tr><td>DeepSeek-V3</td><td>2024</td><td>256 + 1 shared (8 + 1)</td><td class="num">671B</td><td class="num hl">37B</td></tr>
           <tr><td>Qwen3-30B-A3B</td><td>2025</td><td>128 (8)</td><td class="num">30.5B</td><td class="num hl">3.3B</td></tr>
           <tr><td>Qwen3-235B-A22B</td><td>2025</td><td>128 (8)</td><td class="num">235B</td><td class="num hl">22B</td></tr>
+          <tr><td>DeepSeek-V4-Flash*</td><td>2026</td><td>256 + 1 shared (6 + 1)</td><td class="num">284B</td><td class="num hl">13B</td></tr>
+          <tr><td>DeepSeek-V4-Pro*</td><td>2026</td><td>384 + 1 shared (6 + 1)</td><td class="num">1.6T</td><td class="num hl">49B</td></tr>
         </tbody>
       </table>
     </div>
-    <p style="font-size:14px;color:var(--muted);margin-top:10px">As reported by each model's developers. Note that "8x7B" doesn't mean 56B: attention and embeddings are shared, only the feed-forward part is replicated.</p>
+    <p style="font-size:14px;color:var(--muted);margin-top:10px">As reported by each model's developers in their model cards and technical reports; not independently verified. *Preview release [25]. Note that "8x7B" doesn't mean 56B: attention and embeddings are shared, only the feed-forward part is replicated.</p>
   </div>
 </section>
 
@@ -412,10 +414,10 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
       <p class="gen" style="margin-top:8px">There's no "maths expert" or "law expert". Experts emerge from training, and what they specialise in is rarely something a person would name.</p>
       <p class="tech" style="margin-top:8px">Expert assignment is an emergent property of joint optimisation, with no supervision on semantics.</p>
     </div>
-    <p class="gen" style="margin-top:22px">When Mistral AI studied which experts their Mixtral model picked, they found little difference between topics: maths papers, biology articles and philosophy texts used the experts in similar proportions. What they did find was a pattern by <em>form</em>: in Python code, for example, indentation and the word <code>self</code> tended to go to the same expert, and neighbouring words often took the same route [6].</p>
-    <p class="gen">That's worth knowing because "which expert handled this?" sounds like an explanation of the model's answer. It isn't.</p>
+    <p class="gen" style="margin-top:22px">When Mistral AI studied which experts their Mixtral model picked, they found little difference between topics: scientific papers, biology abstracts and philosophy texts used the experts in similar proportions, and a synthetic maths dataset was the only mild exception. What they did find was a pattern by <em>form</em>: in Python code, for example, indentation was consistently sent to the same experts, the pieces of the word <code>self</code> were usually routed together, and neighbouring words often took the same route [6].</p>
+    <p class="gen">That's worth knowing because "which expert handled this?" sounds like an explanation of the model's answer. On this evidence, it isn't one.</p>
     <div class="tech" style="margin-top:22px">
-      <p>Jiang et al. [6] measured expert selection across subsets of The Pile (ArXiv, PubMed, PhilPapers, GitHub, …) at layers 0, 15 and 31 of Mixtral and found no clear domain specialisation, except a mildly different distribution for DM Mathematics, likely due to its synthetic nature. Routing was instead correlated with syntax and position: consecutive tokens were assigned the same expert far more often than chance in deeper layers, and code tokens such as indentation and <code>self</code> concentrated on particular experts. Fine-grained and shared-expert designs [7] are motivated precisely by the claim that coarse experts end up redundant; whether this yields more interpretable specialisation is still an open question, and routing traces should not be treated as attributions.</p>
+      <p>Jiang et al. [6] measured expert selection across subsets of The Pile (ArXiv, PubMed, PhilPapers, GitHub, …) at layers 0, 15 and 31 of Mixtral and found no clear domain specialisation, except a mildly different distribution for DM Mathematics, likely due to its synthetic nature. Routing instead showed some structured syntactic behaviour (qualitative examples) and measurable positional locality: consecutive tokens were assigned the same expert far more often than chance at layers 15 and 31, and code tokens such as indentation and <code>self</code> concentrated on particular experts. Fine-grained and shared-expert designs [7] are motivated by the claim that coarse experts suffer from knowledge hybridity and redundancy; whether this yields more interpretable specialisation is still an open question. In my view, routing traces should therefore not be treated as attributions.</p>
     </div>
   </div>
 </section>
@@ -432,22 +434,22 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
       <div>
         <h4>Some experts get all the work</h4>
         <p class="gen">Left alone, the router tends to favour a few experts. Those get better, so they get picked even more, while the others are wasted. Training has to actively push for balance.</p>
-        <p class="tech">Routing collapse: a positive feedback loop between router preference and expert quality. Mitigated with auxiliary balance losses, bias-based balancing, or balanced assignment by construction (see below).</p>
+        <p class="tech">Routing collapse: a self-reinforcing loop in which favoured experts train faster and are selected even more [2]. Mitigated with auxiliary balance losses, bias-based balancing, or balanced assignment by construction (see below).</p>
       </div>
       <div>
         <h4>Cheap to run, not cheap to hold</h4>
         <p class="gen">Each word only uses a few experts, but the next word might need any of the others. So the whole model still has to sit in memory, and memory is often the most expensive part of running it.</p>
-        <p class="tech">Weights for all \(N\) experts must be resident (or paged in at high cost). Per-token FLOPs scale with \(N_{\text{active}}\), but HBM capacity, and hence GPU count, scales with \(N_{\text{total}}\).</p>
+        <p class="tech">Weights for all \(N\) experts must be resident (or paged in at high cost). Per-token FLOPs scale with \(N_{\text{active}}\), but memory, and hence GPU count, scales with \(N_{\text{total}}\) [6].</p>
       </div>
       <div>
         <h4>Words have to travel between machines</h4>
         <p class="gen">Big MoE models are spread across many chips, with different experts on different chips. Every layer, each word has to be sent to wherever its experts live and back again.</p>
-        <p class="tech">Expert parallelism shards experts across devices; each MoE layer needs two all-to-all collectives (dispatch and combine) whose cost grows with tokens × \(k\) × \(d\) and with interconnect topology.</p>
+        <p class="tech">Expert parallelism shards experts across devices; each MoE layer needs two all-to-all collectives (dispatch and combine) [3] whose cost grows with tokens × \(k\) × \(d\) and with interconnect topology.</p>
       </div>
       <div>
         <h4>Training is touchier</h4>
         <p class="gen">MoE models have historically been less stable to train and easier to over-fit when adapted with small amounts of data. That has improved a lot, but it still needs care.</p>
-        <p class="tech">Router logits can grow and cause loss spikes, especially in low precision; fine-tuning on small datasets overfits more readily than dense models of matched quality [5], though instruction tuning helps MoE disproportionately [13].</p>
+        <p class="tech">Router logits can grow and cause loss spikes, especially in low precision [5]; fine-tuning on small datasets overfits more readily than FLOP-matched dense models [5], though instruction tuning helps MoE disproportionately [13].</p>
       </div>
     </div>
   </div>
@@ -455,7 +457,7 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
   <div class="col">
     <h3>See the balancing problem</h3>
     <p class="gen">Each bar is one expert and its share of the words. The dashed line is how much work each expert can take on. Without balancing, the busiest experts overflow and the extra words are dropped or delayed. Drag the slider to add balancing.</p>
-    <p class="tech">Bars show the dispatch fraction \(f_i\) per expert; the dashed line is the per-expert capacity at capacity factor 1.25. Tokens over capacity are dropped (passed through the residual connection only). Slide to interpolate from a collapsed to a uniform router.</p>
+    <p class="tech">Bars show the dispatch fraction \(f_i\) per expert; the dashed line is the per-expert capacity at capacity factor 1.25. Tokens over capacity are dropped (passed through the residual connection only) [4]. Slide to interpolate from a collapsed to a uniform router.</p>
   </div>
   <div class="wide">
     <figure class="panel lb">
@@ -507,13 +509,13 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
     \[\mathcal{L}_{\text{aux}}=\alpha\,N\sum_{i=1}^{N}f_i\,P_i,\]
     \[f_i=\frac1T\sum_{t}\mathbb{1}[\arg\max p_t=i],\qquad P_i=\frac1T\sum_t p_{t,i},\]
     <p>which is minimised under uniform routing; \(f\) is non-differentiable, so the gradient flows through \(P\). Typical \(\alpha=10^{-2}\). Too large an \(\alpha\) trades model quality for balance.</p>
-    <p><strong>Capacity.</strong> For static shapes each expert processes at most \(C=\mathrm{cf}\cdot kT/N\) tokens; overflow tokens are dropped and carried by the residual stream. MegaBlocks [11] avoids dropping with block-sparse kernels that handle variable expert batch sizes.</p>
-    <p><strong>Auxiliary-loss-free balancing.</strong> DeepSeek-V3 [8, 9] adds a per-expert bias \(b_i\) to the affinity used <em>only for selection</em> (not for the gate value), and after each step nudges \(b_i\leftarrow b_i-\gamma\,\mathrm{sign}(f_i-\bar f)\). This balances load without a gradient term competing with the language-modelling loss; a very small sequence-level auxiliary loss is kept as a safeguard.</p>
-    <p><strong>Router z-loss.</strong> ST-MoE [5] penalises large router logits, \(\mathcal{L}_z=\frac1T\sum_t\big(\log\sum_i e^{z_{t,i}}\big)^2\), which removes most training instabilities from round-off in the router softmax.</p>
-    <p><strong>Balanced by construction.</strong> Expert-choice routing [10] lets each expert pick its top-\(C\) tokens, giving perfect balance and a variable number of experts per token, but it peeks at other tokens in the batch, which complicates autoregressive decoding and creates a cross-request side channel [17]. BASE layers [12] solve a linear assignment problem; hash layers route by a fixed hash of the token id. Soft MoE [14] replaces discrete assignment with learned weighted mixtures of tokens, fully differentiable but less natural for causal decoders.</p>
+    <p><strong>Capacity.</strong> For static shapes each expert processes at most \(C=\mathrm{cf}\cdot kT/N\) tokens (GShard's convention [3]; Switch [4] defines \(\mathrm{cf}\cdot T/N\) for top-1); overflow tokens are dropped and carried by the residual stream. MegaBlocks [11] avoids dropping with block-sparse kernels that handle variable expert batch sizes.</p>
+    <p><strong>Auxiliary-loss-free balancing.</strong> DeepSeek-V3 [8, 9] adds a per-expert bias \(b_i\) to the affinity used <em>only for selection</em> (not for the gate value), and after each step nudges \(b_i\leftarrow b_i-\gamma\,\mathrm{sign}(f_i-\bar f)\) (\(\gamma=0.001\) for most of training). This balances load without a gradient term competing with the language-modelling loss [9]; DeepSeek-V3 keeps an extremely small sequence-level auxiliary loss as a safeguard [8].</p>
+    <p><strong>Router z-loss.</strong> ST-MoE [5] penalises large router logits, \(\mathcal{L}_z=\frac1T\sum_t\big(\log\sum_i e^{z_{t,i}}\big)^2\), which stabilised training without quality loss in their experiments; the authors attribute this to smaller logits reducing round-off error in the router's exponentials [5].</p>
+    <p><strong>Balanced by construction.</strong> Expert-choice routing [10] lets each expert pick its top-\(C\) tokens, giving perfect balance and a variable number of experts per token, but it peeks at other tokens in the batch, which, as the authors note, complicates autoregressive decoding [10] and creates a cross-request side channel [17]. BASE layers [12] solve a linear assignment problem; hash layers route by a fixed hash of the token id [20]. Soft MoE [14] replaces discrete assignment with learned weighted mixtures of tokens: fully differentiable, but difficult to use in autoregressive decoders, as its authors note.</p>
 
     <h3>Inference economics</h3>
-    <p>Decoding at small batch size is memory-bandwidth bound: latency tracks bytes read per step, which tracks \(N_{\text{active}}\), so an MoE decodes much faster than a dense model of the same total size. At batch size \(B\), assuming roughly uniform independent routing, the expected number of distinct experts touched per layer is</p>
+    <p>At small batch sizes the time to load weights dominates decoding [23]; for MoE, latency then depends primarily on loading the parameters actually used [24], which track \(N_{\text{active}}\), so an MoE decodes faster than a dense model of the same total size at low batch sizes [6]. At batch size \(B\), assuming roughly uniform independent routing, the expected number of distinct experts touched per layer is</p>
     \[\mathbb{E}[\#\text{experts}]=N\Big(1-\big(1-\tfrac{k}{N}\big)^{B}\Big),\]
     <p>which approaches \(N\) quickly (with \(N=8,k=2\), already \(\approx 7.2\) at \(B=8\); see the figure above). So at high throughput the weight-loading advantage fades and the win is in FLOPs, while memory remains set by \(N_{\text{total}}\). This is why MoE favours large, batched, expert-parallel deployments and is less attractive on a single memory-constrained device, where quantisation or expert offloading is required.</p>
   </div>
@@ -529,16 +531,16 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
       <div>
         <h4>"How big is it?" has two answers</h4>
         <div>
-          <p class="gen">Ask for both total and active size. A model described as "47 billion parameters" may run like a 13-billion one but need the hardware of a 47-billion one. Comparing an MoE with a normal model on one number is misleading.</p>
-          <p class="tech">Benchmarks normalised by parameter count should state which count. Quality tracks a mix of both, per-token cost tracks \(N_{\text{active}}\), and serving footprint tracks \(N_{\text{total}}\) at the chosen precision.</p>
+          <p class="gen">Ask for both total and active size. A model described as "47 billion parameters" may run like a 13-billion one but need the hardware of a 47-billion one. Comparing an MoE with a normal model on one number is misleading [6].</p>
+          <p class="tech">Benchmarks normalised by parameter count should state which count: per-token compute tracks \(N_{\text{active}}\), and serving footprint tracks \(N_{\text{total}}\) at the chosen precision [6].</p>
           <p class="cost">Affects: model comparison, vendor claims, cost estimates.</p>
         </div>
       </div>
       <div>
-        <h4>Regulation counts compute, not parameters</h4>
+        <h4>The AI Act's automatic trigger is compute, not parameters</h4>
         <div>
-          <p class="gen">The EU AI Act treats general-purpose AI models as potentially carrying systemic risk based on the amount of computation used to train them, not on how many parameters they have. Because MoE models use less computation per word, they can be much larger in parameters for the same training budget.</p>
-          <p class="tech">Article 51 of the AI Act presumes systemic risk for GPAI models with cumulative training compute above \(10^{25}\) FLOPs [15]. With \(C\approx6\,N_{\text{active}}\,D\) for \(D\) training tokens, an MoE can carry several times the parameters of a dense model at the same \(C\). Parameter count is a poor proxy for regulatory scale; ask providers for the compute estimate.</p>
+          <p class="gen">Under the EU AI Act, a general-purpose AI model is automatically presumed to carry systemic risk based on the amount of computation used to train it, not on how many parameters it has. (Parameter count is one of several factors the European Commission can weigh when it designates a model.) Because MoE models use less computation per word, they can be much larger in parameters for the same training budget.</p>
+          <p class="tech">Under Article 51(2), a GPAI model whose cumulative training compute exceeds \(10^{25}\) FLOPs is presumed to have high-impact capabilities and is therefore classified as a GPAI model with systemic risk, rebuttable under Article 52(2) [15]. Parameter count is one of the Annex XIII criteria for designation by the Commission, but not the automatic trigger. A standard pre-training estimate is \(C\approx6\,N\,D\) for \(D\) tokens [21], which for MoE uses active parameters [22]; it excludes attention and routing overhead, and the Act's cumulative compute also counts fine-tuning and synthetic-data generation (Recital 111). An MoE can therefore carry several times the parameters of a dense model at the same \(C\); ask providers for the compute estimate.</p>
           <p class="cost">Affects: GPAI classification, technical documentation requests.</p>
         </div>
       </div>
@@ -566,30 +568,38 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
 <section id="privacy">
   <div class="col">
     <h2>MoE and privacy</h2>
-    <p class="gen">MoE isn't a privacy technique. But it brings two privacy issues that normal models don't have, and it fits naturally with federated learning.</p>
-    <p class="tech">Sparse routing introduces dependencies between requests and a new class of input-derived data. It is also a natural way to parameterise personalised federated learning.</p>
+    <p class="gen">MoE isn't a privacy technique. But it brings privacy issues of its own, and it fits naturally with federated learning.</p>
+    <p class="tech">Capacity-limited routing can introduce dependencies between requests in the same batch, and routing creates a new class of input-derived data. It is also a natural way to parameterise personalised federated learning.</p>
     <div class="defs">
       <div>
         <h4>Who shares your batch can matter</h4>
         <div>
-          <p class="gen">Servers process many people's requests together, and each expert can only take so many words at once. With some routing designs, whether your words get processed depends on what others in the same batch sent. Researchers showed that an attacker whose requests land in the same batch as yours can use this to rebuild your prompt [17]. It's a proof of concept under narrow conditions, not an attack on today's chatbots. Still, normal models don't have this weakness at all.</p>
-          <p class="tech">Yona et al. [17] show that under Expert-Choice routing with capacity limits, an adversary sharing a batch with a victim can recover the victim's prompt by observing which of its own tokens are dropped. The demonstration used a two-layer Mixtral variant and relied on the tie-breaking of <code>torch.topk</code>, with \(\mathcal{O}(VM^2)\) queries, about 100 per token in their setup. Mitigations include per-request capacity isolation, token-choice routing with dropless kernels [11] and randomised tie-breaking. In multi-tenant serving, treat batch composition as a confidentiality boundary.</p>
+          <p class="gen">Servers process many people's requests together, and each expert can only take so many words at once. With some routing designs, whether your words get processed depends on what others in the same batch sent. Researchers showed that an attacker whose requests land in the same batch as yours can use this to rebuild your prompt [17]. The authors call it a proof of concept with unrealistic attacker capabilities, not an attack on today's chatbots. Still, models without this kind of capacity-limited routing don't have this particular weakness.</p>
+          <p class="tech">Yona et al. [17] show that under Expert-Choice routing with capacity limits, an adversary sharing a batch with a victim can recover the victim's prompt by observing which of its own tokens are dropped. The demonstration used the first two blocks of Mixtral-8x7B with an Expert-Choice router, relied on the tie-breaking of <code>torch.topk</code> (router weights quantised to induce ties), restricted guesses to a small vocabulary, and needed \(\mathcal{O}(VM^2)\) queries, about 100 per token in their setup. The authors suggest preserving in-batch independence across users and adding randomness (capacity factor, batch order, routing) [17]. My own inference: avoiding cross-request capacity coupling altogether, e.g. with dropless token-choice routing [11], removes this particular channel.</p>
           <p class="cost">Affects: shared hosting, vendor due diligence.</p>
         </div>
       </div>
       <div>
-        <h4>Routing logs are personal data too</h4>
+        <h4>Routing logs can be personal data</h4>
         <div>
-          <p class="gen">The record of which experts handled each word is calculated from what the user typed. If you keep it for monitoring, under GDPR treat it like the prompts themselves: a clear purpose, limited retention and controlled access.</p>
-          <p class="tech">Router traces are a deterministic function of the input. Linked to request or user identifiers they are pseudonymous data in GDPR scope (Recital 26), not anonymous telemetry. Aggregate to per-expert load statistics before retention where monitoring allows.</p>
+          <p class="gen">The record of which experts handled each word is calculated from what the user typed, and it reveals far more than it seems: in a 2026 study on one open model, an attacker recovered about 91% of the words of short texts from these records alone [26]. If you keep them for monitoring, under GDPR treat them like the prompts themselves: a clear purpose, limited retention and controlled access.</p>
+          <p class="tech">Router traces are essentially deterministic for a given input, up to near-ties and numerical nondeterminism [26]. Nuriyev and Kulp (workshop paper) trained a decoder on 100M tokens of (text, trace) pairs from gpt-oss-20b and recovered 91.2% of tokens (top-1) on held-out 32-token sequences using all 24 layers; adding noise reduced but did not eliminate reconstruction [26]. Traces linked to request or user identifiers relate to an identifiable person and are personal data; pseudonymising them does not take them out of scope for a controller who can re-link them (GDPR Recital 26 [28]). Aggregate to per-expert load statistics before retention where monitoring allows.</p>
           <p class="cost">Affects: logging design, records of processing, retention policy.</p>
+        </div>
+      </div>
+      <div>
+        <h4>The hardware can give routing away</h4>
+        <div>
+          <p class="gen">You don't need access to the logs to see which experts ran. Researchers showed that a malicious program on the same machine can observe it through hardware side effects, and from that infer what users typed: in their tests, 99.8% accuracy on prompts that followed a fixed healthcare template [27].</p>
+          <p class="tech">Ding et al. (ACM CCS 2025) [27] used CPU (cache occupancy, Pageout+Reload) and GPU (performance counter, TLB Evict+Reload) side channels against DeepSeek-V2-Lite, Qwen1.5-MoE, TinyMixtral and DeepSeek-VL2. The threat model is a co-located process or cloud co-tenant with a profiling phase. On DeepSeek-V2-Lite they report 99.8% prompt inference on templated healthcare prompts and up to 92.8% response reconstruction; inference on unstructured prompts was much lower (56.5% top-1 over 116 classes), and TinyMixtral leaked little.</p>
+          <p class="cost">Affects: shared hosting, isolation requirements.</p>
         </div>
       </div>
       <div>
         <h4>A natural fit for federated learning</h4>
         <div>
           <p class="gen">In <a href="../federated-learning/index.html">federated learning</a>, every participant's data is different, so one shared model fits nobody perfectly. A mixture of experts helps. Each participant combines a shared expert, trained together, with a private one that never leaves their side, and a router learns how much to trust each.</p>
-          <p class="tech">Peterson et al. [18] gate between a differentially private federated general model and a per-user private domain expert, with the largest gains when DP is applied to the shared model. FedMix [19] trains an ensemble and selects a user-specific subset of members. Clients that train only the experts they use also cut uplink and on-device memory. Routing statistics reveal a client's data distribution, so they need the same protection as model updates (see <a href="../federated-learning/index.html">federated learning</a>).</p>
+          <p class="tech">Peterson et al. [18] gate between a differentially private federated general model and a per-user private domain expert, with the largest gains when DP is applied to the shared model. FedMix [19] trains an ensemble and selects a user-specific subset of members; note that it multiplies communication by the number of experts, and its authors only propose pruning unused experts to reduce this [19]. Routing statistics can, in some cases, reveal a client's label distribution [19], so they need the same protection as model updates (see <a href="../federated-learning/index.html">federated learning</a>).</p>
           <p class="cost">Affects: personalisation, communication cost.</p>
         </div>
       </div>
@@ -630,7 +640,7 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
         <li>
           <p class="qq">What mostly decides how much hardware you need to run an MoE model?</p>
           <div class="opts"><button type="button" class="opt" data-ok>Its total size</button><button type="button" class="opt">Its active size</button></div>
-          <p class="explain"><b>Its total size.</b> Any expert might be needed for the next word, so all of them must sit in memory. The active size sets the cost and speed of each word, not the memory.</p>
+          <p class="explain"><b>Its total size.</b> Any expert might be needed for the next word, so all of them must be stored and quickly reachable, normally in GPU memory. The active size sets the cost and speed of each word, not the memory.</p>
         </li>
         <li>
           <p class="qq">A user asks a chemistry question. Where does the router send it?</p>
@@ -640,7 +650,7 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
         <li>
           <p class="qq">Under the EU AI Act, what triggers the presumption that a general-purpose model carries systemic risk?</p>
           <div class="opts"><button type="button" class="opt">Its number of parameters</button><button type="button" class="opt" data-ok>The computation used to train it</button><button type="button" class="opt">Its number of experts</button></div>
-          <p class="explain"><b>Training compute</b>, above 10<sup>25</sup> operations (Article 51). MoE models use less computation per word, so they can have far more parameters than a normal model for the same training budget.</p>
+          <p class="explain"><b>Training compute</b>, above 10<sup>25</sup> floating-point operations (Article 51(2)). Parameter count is one factor the Commission can weigh when designating a model, but it isn't the automatic trigger. MoE models use less computation per word, so they can have far more parameters than a normal model for the same training budget.</p>
         </li>
       </ol>
       <div class="quiz-foot">
@@ -655,8 +665,8 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
 <section id="close">
   <div class="col">
     <h2>The short version</h2>
-    <p class="gen">Mixture of Experts is the reason some of the largest open models can be run at all. It trades memory and engineering complexity for a large saving in computation per word. It doesn't make models smarter by itself, and its experts aren't specialists in any human sense, but it changes what "model size" means. Ask for two numbers, not one.</p>
-    <p class="tech">MoE decouples capacity from per-token compute at the cost of memory, communication and routing complexity. It is now the default architecture for frontier-scale open-weight LLMs. For evaluation and governance, report \(N_{\text{total}}\), \(N_{\text{active}}\) and training compute separately.</p>
+    <p class="gen">Mixture of Experts is the reason some of the largest open models are affordable to run per word. It trades memory and engineering complexity for a large saving in computation per word. It doesn't make models smarter by itself, and its experts aren't specialists in any human sense, but it changes what "model size" means. Ask for two numbers, not one.</p>
+    <p class="tech">MoE decouples capacity from per-token compute at the cost of memory, communication and routing complexity. Several of the largest open-weight LLMs, including Mixtral [6], DeepSeek-V3 [8] and DeepSeek-V4 [25], are MoE models. For evaluation and governance, report \(N_{\text{total}}\), \(N_{\text{active}}\) and training compute separately.</p>
 
     <div class="tech">
       <h3>Open problems</h3>
@@ -664,26 +674,36 @@ footer{margin-top:80px;border-top:1px solid var(--rule);padding:24px 0 40px;font
     </div>
     <div>
       <h3>References</h3>
+      <p style="font-size:14px;color:var(--muted)">Peer-reviewed unless marked otherwise. Preprints and technical reports have not been through independent peer review.</p>
       <ol class="refs">
-        <li>Jacobs, Jordan, Nowlan, Hinton. Adaptive Mixtures of Local Experts. Neural Computation, 1991.</li>
-        <li>Shazeer et al. Outrageously Large Neural Networks: The Sparsely-Gated Mixture-of-Experts Layer. ICLR 2017.</li>
+        <li>Jacobs, Jordan, Nowlan, Hinton. Adaptive Mixtures of Local Experts. Neural Computation 3(1), 1991.</li>
+        <li>Shazeer, Mirhoseini, Maziarz, Davis, Le, Hinton, Dean. Outrageously Large Neural Networks: The Sparsely-Gated Mixture-of-Experts Layer. ICLR 2017.</li>
         <li>Lepikhin et al. GShard: Scaling Giant Models with Conditional Computation and Automatic Sharding. ICLR 2021.</li>
-        <li>Fedus, Zoph, Shazeer. Switch Transformers: Scaling to Trillion Parameter Models with Simple and Efficient Sparsity. JMLR, 2022.</li>
-        <li>Zoph et al. ST-MoE: Designing Stable and Transferable Sparse Expert Models. arXiv:2202.08906, 2022.</li>
-        <li>Jiang et al. Mixtral of Experts. arXiv:2401.04088, 2024.</li>
+        <li>Fedus, Zoph, Shazeer. Switch Transformers: Scaling to Trillion Parameter Models with Simple and Efficient Sparsity. JMLR 23(120), 2022.</li>
+        <li>Zoph et al. ST-MoE: Designing Stable and Transferable Sparse Expert Models. arXiv:2202.08906, 2022. <em>Preprint.</em></li>
+        <li>Jiang et al. Mixtral of Experts. arXiv:2401.04088, 2024. <em>Preprint.</em></li>
         <li>Dai et al. DeepSeekMoE: Towards Ultimate Expert Specialization in Mixture-of-Experts Language Models. ACL 2024.</li>
-        <li>DeepSeek-AI. DeepSeek-V3 Technical Report. arXiv:2412.19437, 2024.</li>
-        <li>Wang et al. Auxiliary-Loss-Free Load Balancing Strategy for Mixture-of-Experts. arXiv:2408.15664, 2024.</li>
+        <li>DeepSeek-AI. DeepSeek-V3 Technical Report. arXiv:2412.19437, 2024. <em>Technical report.</em></li>
+        <li>Wang, Gao, Zhao, Sun, Dai. Auxiliary-Loss-Free Load Balancing Strategy for Mixture-of-Experts. arXiv:2408.15664, 2024. <em>Preprint.</em></li>
         <li>Zhou et al. Mixture-of-Experts with Expert Choice Routing. NeurIPS 2022.</li>
         <li>Gale, Narayanan, Young, Zaharia. MegaBlocks: Efficient Sparse Training with Mixture-of-Experts. MLSys 2023.</li>
-        <li>Lewis et al. BASE Layers: Simplifying Training of Large, Sparse Models. ICML 2021.</li>
-        <li>Shen et al. Mixture-of-Experts Meets Instruction Tuning. ICLR 2024.</li>
-        <li>Puigcerver et al. From Sparse to Soft Mixtures of Experts. ICLR 2024.</li>
-        <li>Regulation (EU) 2024/1689 (Artificial Intelligence Act), Article 51.</li>
+        <li>Lewis, Bhosale, Dettmers, Goyal, Zettlemoyer. BASE Layers: Simplifying Training of Large, Sparse Models. ICML 2021.</li>
+        <li>Shen et al. Mixture-of-Experts Meets Instruction Tuning: A Winning Combination for Large Language Models. ICLR 2024.</li>
+        <li>Puigcerver, Riquelme, Mustafa, Houlsby. From Sparse to Soft Mixtures of Experts. ICLR 2024.</li>
+        <li>Regulation (EU) 2024/1689 (Artificial Intelligence Act), Articles 51–52, Annex XIII and Recital 111, as amended by Regulation (EU) 2026/1744 (Article 51 unchanged). <em>Law.</em></li>
         <li>Komatsuzaki et al. Sparse Upcycling: Training Mixture-of-Experts from Dense Checkpoints. ICLR 2023.</li>
-        <li>Yona, Shumailov, Hayes, Carlini. Stealing User Prompts from Mixture of Experts. arXiv:2410.22884, 2024.</li>
-        <li>Peterson, Kanani, Marathe. Private Federated Learning with Domain Adaptation. arXiv:1912.06733, 2019.</li>
-        <li>Reisser, Louizos, Gavves, Welling. Federated Mixture of Experts. arXiv:2107.06724, 2021.</li>
+        <li>Yona, Shumailov, Hayes, Carlini. Stealing User Prompts from Mixture of Experts. arXiv:2410.22884, 2024. <em>Preprint.</em></li>
+        <li>Peterson, Kanani, Marathe. Private Federated Learning with Domain Adaptation. arXiv:1912.06733, 2019. <em>Preprint.</em></li>
+        <li>Reisser, Louizos, Gavves, Welling. Federated Mixture of Experts. arXiv:2107.06724, 2021. <em>Preprint.</em></li>
+        <li>Roller, Sukhbaatar, Szlam, Weston. Hash Layers For Large Sparse Models. NeurIPS 2021.</li>
+        <li>Kaplan et al. Scaling Laws for Neural Language Models. arXiv:2001.08361, 2020. <em>Preprint.</em></li>
+        <li>Ludziejewski, Krajewski, et al. Scaling Laws for Fine-Grained Mixture of Experts. ICML 2024.</li>
+        <li>Pope et al. Efficiently Scaling Transformer Inference. MLSys 2023.</li>
+        <li>Rajbhandari et al. DeepSpeed-MoE: Advancing Mixture-of-Experts Inference and Training to Power Next-Generation AI Scale. ICML 2022.</li>
+        <li>DeepSeek-AI. DeepSeek-V4: Towards Highly Efficient Million-Token Context Intelligence. arXiv:2606.19348, 2026; and model cards deepseek-ai/DeepSeek-V4-Pro and -Flash. <em>Technical report (preview release).</em></li>
+        <li>Nuriyev, Kulp. Expert Selections In MoE Models Reveal (Almost) As Much As Text. ICLR 2026 Workshop on Principled Design for Trustworthy AI; arXiv:2602.04105. <em>Workshop paper.</em></li>
+        <li>Ding, Xu, Shen, Ding, Fei. MoEcho: Exploiting Side-Channel Attacks to Compromise User Privacy in Mixture-of-Experts LLMs. ACM CCS 2025.</li>
+        <li>Regulation (EU) 2016/679 (General Data Protection Regulation), Recital 26. <em>Law.</em></li>
       </ol>
     </div>
   </div>
