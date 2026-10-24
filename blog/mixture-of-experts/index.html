@@ -135,6 +135,8 @@ figcaption{font-size:14px;color:var(--muted);margin-top:10px}
 .dg .wt.on{opacity:1}
 .dg .dense{fill:var(--model-tint);stroke:var(--model);stroke-width:2}
 #layer .grp{transition:opacity .35s}
+.dg .sent{fill:var(--muted);font-size:13px}
+@media (max-width:600px){#layer .lbl,#round .lbl{font-size:16px}#layer .sub,#round .sub{font-size:14px}#layer .score{font-size:16px}}
 
 /* challenges */
 .chal{display:grid;grid-template-columns:1fr;gap:26px}
@@ -704,40 +706,69 @@ function defs(svg){var d=el("defs",{},svg);
 function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
 function tokChip(g,x,y,w,label){el("rect",{x:x-w/2,y:y-20,width:w,height:40,rx:20,"class":"tok"},g);return txt(g,x,y+5,label,"lbl");}
 
-/* hero: router lighting two of eight experts */
+/* hero: router lighting two of eight experts (wide layout, stacked on phones) */
 (function(){
-  var svg=document.getElementById("hero"); defs(svg);
-  var g=el("g",{},svg), N=8, ex=480, ew=150, eh=30, rx=300, ry=180, sx=730;
-  var ys=[];for(var i=0;i<N;i++) ys.push(37+i*41);
-  var routes=[],outs=[],boxes=[],wts=[];
-  for(i=0;i<N;i++){
-    routes.push(el("path",{d:"M360,"+ry+" C420,"+ry+" 420,"+ys[i]+" "+ex+","+ys[i],"class":"route"},g));
-    outs.push(el("path",{d:"M"+(ex+ew)+","+ys[i]+" C680,"+ys[i]+" 680,"+ry+" "+(sx-26)+","+ry,"class":"route"},g));
+  var svg=document.getElementById("hero"),N=8,n=0,word,spans,routes,outs,boxes,wts;
+  var seq=[["The",2,6,.58],["cat",2,4,.55],["sat",4,7,.61],["on",0,4,.52],["the",0,5,.66],["mat",5,1,.57],[".",1,3,.60]];
+  var narrow=window.matchMedia("(max-width: 640px)");
+  function build(){
+    while(svg.firstChild)svg.removeChild(svg.firstChild);
+    defs(svg);routes=[];outs=[];boxes=[];wts=[];spans=[];
+    var gr=el("g",{},svg),g=el("g",{},svg),sent,i;
+    if(!narrow.matches){
+      svg.setAttribute("viewBox","0 0 900 360");
+      var ex=480,ew=150,eh=30,rx=300,ry=180,sx=730,ys=[];
+      for(i=0;i<N;i++) ys.push(37+i*41);
+      for(i=0;i<N;i++){
+        routes.push(el("path",{d:"M360,"+ry+" C420,"+ry+" 420,"+ys[i]+" "+ex+","+ys[i],"class":"route"},gr));
+        outs.push(el("path",{d:"M"+(ex+ew)+","+ys[i]+" C680,"+ys[i]+" 680,"+ry+" "+(sx-26)+","+ry,"class":"route"},gr));
+      }
+      el("line",{x1:150,y1:ry,x2:236,y2:ry,"class":"arrow-d","marker-end":"url(#hero-ad)"},g);
+      word=tokChip(g,95,ry,110,"The"); txt(g,95,ry+40,"token","sub");
+      sent=el("text",{x:24,y:ry-78,"class":"sent","text-anchor":"start"},g);
+      el("rect",{x:rx-60,y:ry-42,width:120,height:84,rx:14,"class":"srv"},g);
+      txt(g,rx,ry-2,"Router","lbl"); txt(g,rx,ry+18,"picks top 2","sub");
+      for(i=0;i<N;i++){
+        boxes.push(el("rect",{x:ex,y:ys[i]-eh/2,width:ew,height:eh,rx:8,"class":"exp"},g));
+        txt(g,ex+14,ys[i]+5,"Expert "+(i+1),"lbl","start");
+        wts.push(txt(g,ex+ew-12,ys[i]+5,"","wt","end"));
+      }
+      el("circle",{cx:sx,cy:ry,r:26,"class":"srv"},g); txt(g,sx,ry+6,"Σ","lbl");
+      el("line",{x1:sx+28,y1:ry,x2:800,y2:ry,"class":"arrow-m","marker-end":"url(#hero-am)"},g);
+      txt(g,845,ry+5,"output","lbl"); txt(g,845,ry+24,"to next layer","sub");
+    }else{
+      svg.setAttribute("viewBox","0 0 340 520");
+      var cx=170,cols=[16,184],cw=140,ch=32,rows=[232,276,320,364],sy=440;
+      sent=el("text",{x:cx,y:22,"class":"sent","text-anchor":"middle"},g);
+      word=tokChip(g,cx,64,110,"The");
+      el("line",{x1:cx,y1:86,x2:cx,y2:110,"class":"arrow-d","marker-end":"url(#hero-ad)"},g);
+      el("rect",{x:cx-70,y:114,width:140,height:60,rx:14,"class":"srv"},g);
+      txt(g,cx,140,"Router","lbl"); txt(g,cx,159,"picks top 2","sub");
+      for(i=0;i<N;i++){
+        var c=i%2,x=cols[c],y=rows[Math.floor(i/2)],inner=c?x:x+cw;
+        routes.push(el("path",{d:"M"+cx+",174 C"+cx+","+y+" "+cx+","+y+" "+inner+","+y,"class":"route"},gr));
+        outs.push(el("path",{d:"M"+inner+","+y+" C"+cx+","+y+" "+cx+","+y+" "+cx+","+(sy-24),"class":"route"},gr));
+        boxes.push(el("rect",{x:x,y:y-ch/2,width:cw,height:ch,rx:8,"class":"exp"},g));
+        txt(g,c?x+14:x+12,y+5,"Expert "+(i+1),"lbl","start");
+        wts.push(txt(g,x+cw-12,y+5,"","wt","end"));
+      }
+      el("circle",{cx:cx,cy:sy,r:24,"class":"srv"},g); txt(g,cx,sy+6,"Σ","lbl");
+      el("line",{x1:cx,y1:sy+26,x2:cx,y2:sy+48,"class":"arrow-m","marker-end":"url(#hero-am)"},g);
+      txt(g,cx,sy+70,"output to next layer","lbl");
+    }
+    seq.forEach(function(q,k){var t=el("tspan",{},sent);t.textContent=(k&&q[0]!=="."?" ":"")+q[0];spans.push(t);});
   }
-  el("line",{x1:150,y1:ry,x2:236,y2:ry,"class":"arrow-d","marker-end":"url(#hero-ad)"},g);
-  var word=tokChip(g,95,ry,110,"The");
-  txt(g,95,ry+40,"token","sub");
-  var seq=[["The",2,6,.58],["cat",2,4,.55],["sat",4,7,.61],["on",0,4,.52],["the",0,5,.66],["mat",5,1,.57],[".",1,3,.60]],n=0;
-  var sent=el("text",{x:24,y:ry-78,"class":"sub","text-anchor":"start"},g),spans=[];
-  seq.forEach(function(s,i){var t=el("tspan",{},sent);t.textContent=(i?" ":"")+s[0];spans.push(t);});
-  el("rect",{x:rx-60,y:ry-42,width:120,height:84,rx:14,"class":"srv"},g);
-  txt(g,rx,ry-2,"Router","lbl"); txt(g,rx,ry+18,"picks top 2","sub");
-  for(i=0;i<N;i++){
-    boxes.push(el("rect",{x:ex,y:ys[i]-eh/2,width:ew,height:eh,rx:8,"class":"exp"},g));
-    txt(g,ex+14,ys[i]+5,"Expert "+(i+1),"lbl","start");
-    wts.push(txt(g,ex+ew-12,ys[i]+5,"","wt","end"));
-  }
-  el("circle",{cx:sx,cy:ry,r:26,"class":"srv"},g); txt(g,sx,ry+6,"Σ","lbl").setAttribute("font-size","18");
-  el("line",{x1:sx+28,y1:ry,x2:800,y2:ry,"class":"arrow-m","marker-end":"url(#hero-am)"},g);
-  txt(g,845,ry+5,"output","lbl"); txt(g,845,ry+24,"to next layer","sub");
   function show(s){
     word.textContent=s[0];
     spans.forEach(function(t,i){t.setAttribute("fill",seq[i]===s?"var(--data)":"var(--muted)");t.setAttribute("font-weight",seq[i]===s?"700":"400");});
     for(var j=0;j<N;j++){var on=j===s[1]||j===s[2];
       boxes[j].classList.toggle("on",on);routes[j].classList.toggle("on",on);outs[j].classList.toggle("on",on);
+      if(on){routes[j].parentNode.appendChild(routes[j]);outs[j].parentNode.appendChild(outs[j]);}
       wts[j].classList.toggle("on",on);wts[j].textContent=j===s[1]?s[3].toFixed(2):j===s[2]?(1-s[3]).toFixed(2):"";}
   }
-  show(seq[0]);
+  function redraw(){build();show(seq[n]);}
+  if(narrow.addEventListener)narrow.addEventListener("change",redraw);else narrow.addListener(redraw);
+  redraw();
   if(!reduce) setInterval(function(){n=(n+1)%seq.length;show(seq[n]);},1800);
 })();
 
@@ -787,7 +818,7 @@ function tokChip(g,x,y,w,label){el("rect",{x:x-w/2,y:y-20,width:w,height:40,rx:2
     el("rect",{x:ex+82,y:y-5,width:bw,height:10,rx:3,fill:"var(--data)"},g2);
     txt(g2,ex-8,y-9,probs[i].toFixed(2),"score","end");
   });
-  el("circle",{cx:sx,cy:cy,r:22,"class":"srv"},base); txt(base,sx,cy+6,"Σ","lbl").setAttribute("font-size","17");
+  el("circle",{cx:sx,cy:cy,r:22,"class":"srv"},base); txt(base,sx,cy+6,"Σ","lbl");
   txt(g4,sx-4,cy+50,"0.52·E₁","res","middle"); txt(g4,sx-4,cy+68,"+ 0.48·E₃","res","middle");
   var steps=[].slice.call(document.querySelectorAll("#steps li")),cur=1,groups=[g1,g2,g3,g4];
   function go(s){

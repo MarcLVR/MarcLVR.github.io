@@ -130,6 +130,9 @@ figcaption{font-size:14px;color:var(--muted);margin-top:10px}
 .dg .arrow-r{stroke:var(--risk);stroke-width:2;fill:none;stroke-dasharray:5 4}
 .dg .ring{fill:none;stroke:var(--model);stroke-width:2;stroke-dasharray:6 5;opacity:0}
 #round .grp{opacity:.12;transition:opacity .35s}
+#round .grp text{opacity:0;transition:opacity .35s}
+#round[data-s="2"] .g-train text,#round[data-s="4"] .g-agg text{opacity:1}
+@media (max-width:600px){#layer .lbl,#round .lbl{font-size:16px}#layer .sub,#round .sub{font-size:14px}#layer .score{font-size:16px}}
 #round[data-s="1"] .g-out,#round[data-s="2"] .g-train,#round[data-s="3"] .g-in,#round[data-s="4"] .g-agg{opacity:1}
 #round[data-s="2"] .ring{opacity:1;animation:spin 3s linear infinite;transform-box:fill-box;transform-origin:center}
 #round[data-s="4"] .srv{animation:pulse 1.2s ease-in-out 2}
@@ -609,23 +612,32 @@ function client(g,x,y,w,h,label,dots){
 function server(g,x,y,r,label){el("circle",{cx:x,cy:y,r:r,"class":"srv"},g);if(label!=="")txt(g,x,y+5,label===undefined?"Server":label);}
 function shorten(x1,y1,x2,y2,a,b){var dx=x2-x1,dy=y2-y1,L=Math.hypot(dx,dy);return [x1+dx*a/L,y1+dy*a/L,x2-dx*b/L,y2-dy*b/L];}
 
-/* hero */
+/* hero (wide layout, stacked on phones) */
 (function(){
-  var svg=document.getElementById("hero"),cx=450,cy=190;
-  var pts=[[120,80],[120,300],[450,335],[780,300],[780,80],[450,45]];
+  var svg=document.getElementById("hero"),narrow=window.matchMedia("(max-width: 640px)");
   var names=["Phone","Hospital","Car","Bank","Laptop","Watch"];
-  var g=el("g",{},svg);
-  pts.forEach(function(p){el("line",{x1:cx,y1:cy,x2:p[0],y2:p[1],"class":"link"},g);});
-  server(g,cx,cy,52,"Server");
-  txt(g,cx,cy+24,"shared model","sub");
-  pts.forEach(function(p,i){client(g,p[0],p[1],118,62,names[i],3);});
-  if(reduce) return;
-  pts.forEach(function(p,i){
-    var s=shorten(cx,cy,p[0],p[1],54,34);
-    var path="M"+s[0]+","+s[1]+" L"+s[2]+","+s[3];
-    var pk=el("rect",{x:-6,y:-6,width:12,height:12,rx:3,"class":"pk"},svg);
-    el("animateMotion",{dur:"4.8s",repeatCount:"indefinite",begin:(i*0.35)+"s",path:path,keyPoints:"0;1;1;0;0",keyTimes:"0;0.35;0.5;0.85;1",calcMode:"linear"},pk);
-  });
+  function build(){
+    while(svg.firstChild)svg.removeChild(svg.firstChild);
+    var nar=narrow.matches,cx,cy,pts,r,cw,chh;
+    if(!nar){svg.setAttribute("viewBox","0 0 900 380");cx=450;cy=190;r=52;cw=118;chh=62;
+      pts=[[120,80],[120,300],[450,335],[780,300],[780,80],[450,45]];}
+    else{svg.setAttribute("viewBox","0 0 340 440");cx=170;cy=220;r=44;cw=96;chh=58;
+      pts=[[58,70],[58,220],[58,370],[282,370],[282,220],[282,70]];}
+    var g=el("g",{},svg);
+    pts.forEach(function(p){el("line",{x1:cx,y1:cy,x2:p[0],y2:p[1],"class":"link"},g);});
+    server(g,cx,cy,r,"Server");
+    txt(g,cx,cy+24,"shared model","sub");
+    pts.forEach(function(p,i){client(g,p[0],p[1],cw,chh,names[i],3);});
+    if(reduce) return;
+    pts.forEach(function(p,i){
+      var s=shorten(cx,cy,p[0],p[1],r+2,nar?32:34);
+      var path="M"+s[0]+","+s[1]+" L"+s[2]+","+s[3];
+      var pk=el("rect",{x:-6,y:-6,width:12,height:12,rx:3,"class":"pk"},svg);
+      el("animateMotion",{dur:"4.8s",repeatCount:"indefinite",begin:(-i*0.35)+"s",path:path,keyPoints:"0;1;1;0;0",keyTimes:"0;0.35;0.5;0.85;1",calcMode:"linear"},pk);
+    });
+  }
+  if(narrow.addEventListener)narrow.addEventListener("change",build);else narrow.addListener(build);
+  build();
 })();
 
 /* centralised vs federated */
