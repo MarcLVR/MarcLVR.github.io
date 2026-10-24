@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com; img-src 'self' https://avatars.githubusercontent.com data:; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <title>Federated learning: training a model without collecting the data</title>
 <meta name="description" content="How federated learning works, where it breaks, and when it's worth it. Read it as a visual overview or as a technical deep dive.">
 <link rel="canonical" href="https://marclvr.github.io/blog/federated-learning/">
@@ -14,12 +15,10 @@
 <meta name="twitter:card" content="summary">
 <meta name="author" content="Marc Pérez Bernús">
 <link rel="icon" href="https://avatars.githubusercontent.com/u/26000284?v=4">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&family=Public+Sans:ital,wght@0,400..700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<link rel="stylesheet" href="../../assets/fonts/fonts.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.21/katex.min.css" integrity="sha384-zh0CIslj+VczCZtlzBcjt5ppRcsAmDnRem7ESsYwWwg3m/OaJ2l4x7YBZl9Kxxib" crossorigin="anonymous" referrerpolicy="no-referrer">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.21/katex.min.js" integrity="sha384-Rma6DA2IPUwhNxmrB/7S3Tno0YY7sFu9WSYMCuulLhIqYSGZ2gKCJWIqhBWqMQfh" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.21/contrib/auto-render.min.js" integrity="sha384-hCXGrW6PitJEwbkoStFjeJxv+fSOOQKOPbJxSfM6G5sWZjAyWhXiTIIAmQqnlLlh" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
 :root{
   --ground:#F3F5F8; --surface:#FFFFFF; --ink:#111C2E; --muted:#56637A; --rule:#D9DFE8; --rule-soft:#E7EBF1;

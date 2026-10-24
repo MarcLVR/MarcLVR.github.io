@@ -2,53 +2,22 @@
 
 Personal site and blog of Marc Pérez Bernús: Project Manager with an MSc in Data Science, focused on machine learning for risk, Agentic AI, Responsible AI and data governance.
 
-**Live site:** https://marclvr.github.io
+**Visit:** https://marclvr.github.io
 
 ## What's here
 
 | Page | What it is |
 |---|---|
-| [`index.html`](index.html) | Portfolio: about, capabilities, selected projects, writing, skills matrix, experience and contact |
-| [`blog/index.html`](blog/index.html) | Blog index |
-| [`blog/federated-learning/`](blog/federated-learning/index.html) | *Federated learning: training a model without collecting the data* |
-| [`blog/mixture-of-experts/`](blog/mixture-of-experts/index.html) | *Mixture of Experts: huge models that only use a fraction of themselves* |
+| [Portfolio](https://marclvr.github.io) | About, capabilities, selected projects, writing, skills, experience and contact |
+| [Blog](https://marclvr.github.io/blog/) | All posts |
+| [Federated learning](https://marclvr.github.io/blog/federated-learning/) | *Training a model without collecting the data* |
+| [Mixture of Experts](https://marclvr.github.io/blog/mixture-of-experts/) | *Huge models that only use a fraction of themselves* |
 
 Each blog post can be read at two levels, **General** (visual, no maths) and **Technical** (formulas, algorithms, references), switched from the top bar. Posts include interactive diagrams, and every page supports light and dark themes.
 
 ## How it's built
 
-- Plain static HTML, CSS and JavaScript. No framework, no build step, no dependencies to install.
-- Each page is a single self-contained `index.html` with its own styles and scripts.
-- External resources: Google Fonts, and [KaTeX](https://katex.org) from cdnjs for the maths in blog posts.
-- Hosted on GitHub Pages from the `main` branch.
-
-```
-.
-├── index.html                  # portfolio
-├── README.md
-└── blog/
-    ├── index.html              # list of posts
-    ├── federated-learning/
-    │   └── index.html
-    └── mixture-of-experts/
-        └── index.html
-```
-
-## Run locally
-
-Open `index.html` in a browser, or serve the folder so relative links behave exactly as on GitHub Pages:
-
-```bash
-python3 -m http.server 8000
-# then visit http://localhost:8000
-```
-
-## Adding a blog post
-
-1. Copy an existing post folder, e.g. `blog/mixture-of-experts/`, to `blog/<new-slug>/` and replace the content.
-2. Update the `<title>`, `description`, and the `canonical` / `og:*` tags in the new page's `<head>` so link previews (LinkedIn, etc.) are correct.
-3. In `blog/index.html`, copy one `<li>` block to the top of the list and change the link, date, title, summary and tags. Do the same in the **Writing** section of the main `index.html`.
-4. Commit and push to `main`. GitHub Pages redeploys automatically.
+Plain static HTML, CSS and JavaScript hosted on GitHub Pages: no framework, no tracking, no cookies and no forms. Fonts are self-hosted (see [`assets/fonts/LICENSE.md`](assets/fonts/LICENSE.md)), so visitors' browsers don't contact Google. The only third-party resource is [KaTeX](https://katex.org) for the maths in blog posts, loaded with integrity checks under a Content Security Policy.
 
 ## Licence and reuse
 
